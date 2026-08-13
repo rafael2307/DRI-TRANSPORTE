@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: transport-db
+    restart: always
+    environment:
+      POSTGRES_USER: transport_user
+      POSTGRES_PASSWORD: transport_password
+      POSTGRES_DB: transport_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: transport-redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: builder # Usar stage con devDependencies para NestJS
+    container_name: transport-backend
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app # Hot-reload de código 
+      - /app/node_modules # Evitar que node_modules de Windows pise al de Linux
+    command: sh -c "npm install && npm run start:dev" # Instalamos dependencias primero para evitar nodo_modules vacío
+    environment:
+      - PORT=3000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=transport_user
+      - DB_PASSWORD=transport_password
+      - DB_DATABASE=transport_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=super-secret-key-change-me-in-production
+      - JWT_EXPIRES_IN=7d
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:

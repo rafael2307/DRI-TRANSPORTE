@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo-Motion Hub Central</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        electric: '#0F172A',
+                        neon: '#8B5CF6',
+                        cyber: '#3B82F6',
+                        success: '#10B981',
+                        warning: '#F59E0B',
+                        trust: '#2563EB',
+                        growth: '#059669',
+                        authority: '#6366F1',
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #050505;
+            background-image:
+                radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+            color: #ffffff;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .glow-border {
+            position: relative;
+        }
+
+        .glow-border::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #3B82F6, #8B5CF6, #F59E0B, #10B981);
+            z-index: -1;
+            border-radius: inherit;
+            filter: blur(10px);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .glass-card:hover.glow-border::before {
+            opacity: 0.5;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        /* Ambient grid background */
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -2;
+            transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+            animation: grid-move 20s linear infinite;
+            opacity: 0.3;
+        }
+
+        @keyframes grid-move {
+            0% {
+                transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px);
+            }
+
+            100% {
+                transform: perspective(500px) rotateX(60deg) translateY(50px) translateZ(-200px);
+            }
+        }
+    </style>
+</head>
+
+<body class="relative flex flex-col items-center justify-center p-6 sm:p-12">
+
+    <div class="grid-bg"></div>
+
+    <!-- Header Section -->
+    <header class="text-center mb-16 animate-float z-10">
+        <div
+            class="inline-block p-4 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-6 shadow-[0_0_30px_rgba(59,130,246,0.2)]">
+            <i
+                class="fa-solid fa-layer-group text-4xl text-transparent bg-clip-text bg-gradient-to-r from-cyber to-neon"></i>
+        </div>
+        <h1 class="font-heading text-5xl md:text-7xl font-extrabold mb-4 tracking-tight">
+            Neo<span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500">-Motion</span>
+        </h1>
+        <p class="text-gray-400 text-lg md:text-xl font-light max-w-2xl mx-auto">
+            Central Hub para el Sistema Integral de Transporte. Accede a las interfaces desplegadas desde este panel
+            maestro.
+        </p>
+    </header>
+
+    <!-- Services Grid -->
+    <main class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-8 z-10 relative">
+
+        <!-- App Pasajero — Psicología: Azul (Confianza, Seguridad, Calma) -->
+        <a href="http://localhost:8081" target="_blank"
+            class="glass-card glow-border rounded-3xl p-8 flex flex-col group"
+            style="border-color: rgba(37, 99, 235, 0.2);">
+            <div class="flex justify-between items-start mb-6">
+                <div
+                    class="bg-blue-500/20 w-16 h-16 rounded-2xl flex items-center justify-center border border-blue-500/30 group-hover:bg-blue-500/40 transition">
+                    <i class="fa-solid fa-user text-2xl text-blue-400"></i>
+                </div>
+                <div
+                    class="bg-white/5 px-3 py-1 rounded-full text-xs font-semibold flex items-center border border-white/10">
+                    <span class="status-dot text-blue-400 bg-blue-400 animate-pulse-slow"></span>
+                    Puerto 8081
+                </div>
+            </div>
+            <h2 class="font-heading text-3xl font-bold mb-3" style="color: #3B82F6;">App Pasajero</h2>
+            <p class="text-gray-400 font-light flex-grow mb-6">Interfaz principal para que los usuarios soliciten
+                viajes, sigan su ruta y califiquen el servicio.</p>
+            <div class="flex items-center font-semibold group-hover:translate-x-2 transition-transform" style="color: #3B82F6;">
+                Abrir Servicio <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
+            </div>
+        </a>
+
+        <!-- App Conductor — Psicología: Verde (Dinero, Crecimiento, Acción) -->
+        <a href="http://localhost:8082" target="_blank"
+            class="glass-card glow-border rounded-3xl p-8 flex flex-col group"
+            style="border-color: rgba(5, 150, 105, 0.2);">
+            <div class="flex justify-between items-start mb-6">
+                <div
+                    class="w-16 h-16 rounded-2xl flex items-center justify-center border transition"
+                    style="background: rgba(5, 150, 105, 0.2); border-color: rgba(5, 150, 105, 0.3);"
+                    onmouseover="this.style.background='rgba(5, 150, 105, 0.4)'"
+                    onmouseout="this.style.background='rgba(5, 150, 105, 0.2)'">
+                    <i class="fa-solid fa-car-side text-2xl" style="color: #10B981;"></i>
+                </div>
+                <div
+                    class="bg-white/5 px-3 py-1 rounded-full text-xs font-semibold flex items-center border border-white/10">
+                    <span class="status-dot" style="color: #10B981; background: #10B981;"></span>
+                    Puerto 8082
+                </div>
+            </div>
+            <h2 class="font-heading text-3xl font-bold mb-3" style="color: #10B981;">App Conductor</h2>
+            <p class="text-gray-400 font-light flex-grow mb-6">Plataforma para conductores: recepción de viajes,
+                navegación en tiempo real y ganancias.</p>
+            <div class="flex items-center font-semibold group-hover:translate-x-2 transition-transform" style="color: #10B981;">
+                Abrir Servicio <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
+            </div>
+        </a>
+
+        <!-- Panel Administrativo — Psicología: Índigo (Autoridad, Control, Sabiduría) -->
+        <a href="http://localhost:3001" target="_blank"
+            class="glass-card glow-border rounded-3xl p-8 flex flex-col group"
+            style="border-color: rgba(99, 102, 241, 0.2);">
+            <div class="flex justify-between items-start mb-6">
+                <div
+                    class="w-16 h-16 rounded-2xl flex items-center justify-center border transition"
+                    style="background: rgba(99, 102, 241, 0.2); border-color: rgba(99, 102, 241, 0.3);"
+                    onmouseover="this.style.background='rgba(99, 102, 241, 0.4)'"
+                    onmouseout="this.style.background='rgba(99, 102, 241, 0.2)'">
+                    <i class="fa-solid fa-chart-line text-2xl" style="color: #818CF8;"></i>
+                </div>
+                <div
+                    class="bg-white/5 px-3 py-1 rounded-full text-xs font-semibold flex items-center border border-white/10">
+                    <span class="status-dot" style="color: #818CF8; background: #818CF8;"></span>
+                    Puerto 3001
+                </div>
+            </div>
+            <h2 class="font-heading text-3xl font-bold mb-3" style="color: #818CF8;">Panel Admin</h2>
+            <p class="text-gray-400 font-light flex-grow mb-6">Dashboard de control para supervisar viajes, gestionar
+                usuarios y analizar finanzas del sistema.</p>
+            <div class="flex items-center font-semibold group-hover:translate-x-2 transition-transform" style="color: #818CF8;">
+                Abrir Servicio <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
+            </div>
+        </a>
+
+        <!-- Backend API — Psicología: Púrpura (Innovación, Infraestructura, Premium) -->
+        <a href="http://localhost:3000/api" target="_blank"
+            class="glass-card glow-border rounded-3xl p-8 flex flex-col group"
+            style="border-color: rgba(139, 92, 246, 0.2);">
+            <div class="flex justify-between items-start mb-6">
+                <div
+                    class="w-16 h-16 rounded-2xl flex items-center justify-center border transition"
+                    style="background: rgba(139, 92, 246, 0.2); border-color: rgba(139, 92, 246, 0.3);"
+                    onmouseover="this.style.background='rgba(139, 92, 246, 0.4)'"
+                    onmouseout="this.style.background='rgba(139, 92, 246, 0.2)'">
+                    <i class="fa-solid fa-server text-2xl" style="color: #A78BFA;"></i>
+                </div>
+                <div
+                    class="bg-white/5 px-3 py-1 rounded-full text-xs font-semibold flex items-center border border-white/10">
+                    <span class="status-dot" style="color: #A78BFA; background: #A78BFA;"></span>
+                    Puerto 3000
+                </div>
+            </div>
+            <h2 class="font-heading text-3xl font-bold mb-3" style="color: #A78BFA;">Backend API</h2>
+            <p class="text-gray-400 font-light flex-grow mb-6">Motor central del sistema (NestJS Core). Gestiona lógica
+                de negocio, base de datos y WebSockets en tiempo real.</p>
+            <div class="flex items-center font-semibold group-hover:translate-x-2 transition-transform" style="color: #A78BFA;">
+                Verificar Salud API <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
+            </div>
+        </a>
+
+    </main>
+
+    <!-- Footer Instructions -->
+    <footer class="mt-20 text-center z-10 max-w-2xl bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-md">
+        <h3 class="font-bold text-white mb-2 flex items-center justify-center">
+            <i class="fa-solid fa-terminal mr-2 text-gray-400"></i> ¿Cómo levantar el entorno?
+        </h3>
+        <p class="text-sm text-gray-400 text-left space-y-2">
+            Abre 4 terminales separadas en el directorio raíz y ejecuta:<br><br>
+            <span class="block bg-black/50 p-2 rounded text-green-400 font-mono text-xs">Terminal 1: cd backend && npm
+                run start:dev</span>
+            <span class="block bg-black/50 p-2 rounded text-green-400 font-mono text-xs">Terminal 2: cd panel-admin &&
+                npm run dev</span>
+            <span class="block bg-black/50 p-2 rounded text-green-400 font-mono text-xs">Terminal 3: cd app-pasajero &&
+                npm run web</span>
+            <span class="block bg-black/50 p-2 rounded text-green-400 font-mono text-xs">Terminal 4: cd app-conductor &&
+                npm run web</span>
+        </p>
+    </footer>
+
+</body>
+
+</html>

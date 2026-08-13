@@ -53,7 +53,8 @@ Este documento detalla los requisitos funcionales y no funcionales, entradas, sa
 *   **Latencia:** La posición del conductor debe actualizarse en el mapa del usuario con < 2 segundos de retraso.
 *   **Seguridad:** Datos sensibles (tarjetas, contraseñas) encriptados (AES-256). Comunicaciones vía HTTPS (TLS 1.3).
 *   **Escalabilidad:** Arquitectura capaz de soportar 10,000 usuarios concurrentes inicialmente.
-*   **Internacionalización:** Soporte inicial para Español e Inglés.
+*   **Idioma:** Toda la interfaz, instrucciones, mensajes de error y respuestas de voz deben ser estrictamente en **ESPAÑOL**.
+*   **Internacionalización:** Soporte futuro para otros idiomas, pero Español es la prioridad absoluta.
 
 ## 5. Reglas de Negocio Críticas
 *   Un conductor no puede recibir solicitudes si su documentación está vencida.

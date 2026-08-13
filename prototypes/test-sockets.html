@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.io Test - Transport App</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            background: #f4f4f9;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+        }
+
+        .log {
+            background: #222;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            margin-top: 10px;
+        }
+
+        input,
+        button {
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            background: #3498db;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .section {
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Transport App - WebSocket Tester</h1>
+
+        <div class="controls">
+            <div class="section">
+                <h3>Passenger</h3>
+                <input type="text" id="passId" value="pass_123" placeholder="Passenger ID">
+                <button onclick="connectPassenger()">Connect & Map</button>
+                <br>
+                <button onclick="requestTrip()">Request Trip</button>
+            </div>
+            <div class="section">
+                <h3>Driver</h3>
+                <input type="text" id="driverId" value="driver_456" placeholder="Driver ID">
+                <button onclick="connectDriver()">Connect & Map</button>
+                <br>
+                <button onclick="updateLocation()">Update Location (Random)</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <button onclick="clearLog()">Clear Log</button>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let passengerSocket;
+        let driverSocket;
+        const logPanel = document.getElementById('log');
+
+        function log(msg, type = 'info') {
+            const entry = document.createElement('div');
+            entry.textContent = `[${new Date().toLocaleTimeString()}] [${type}] ${msg}`;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        function clearLog() { logPanel.innerHTML = ''; }
+
+        function connectPassenger() {
+            const userId = document.getElementById('passId').value;
+            passengerSocket = io('http://localhost:3000', { query: { userId } });
+            passengerSocket.on('connect', () => log(`Passenger connected: ${passengerSocket.id}`, 'SUCCESS'));
+            passengerSocket.on('tripAccepted', (data) => log(`TRIP ACCEPTED by driver ${data.driverId}! Trip ID: ${data.tripId}`, 'TRIP'));
+            passengerSocket.on('nearbyDrivers', (data) => log(`Nearby drivers: ${JSON.stringify(data)}`, 'DATA'));
+        }
+
+        function connectDriver() {
+            const userId = document.getElementById('driverId').value;
+            driverSocket = io('http://localhost:3000', { query: { userId } });
+            driverSocket.on('connect', () => log(`Driver connected: ${driverSocket.id}`, 'SUCCESS'));
+            driverSocket.on('newTripRequest', (data) => {
+                log(`NEW TRIP REQUEST: ${JSON.stringify(data)}`, 'TRIP');
+                if (confirm('Accept trip?')) {
+                    driverSocket.emit('acceptTrip', {
+                        tripId: data.tripId,
+                        passengerSocketId: data.passengerSocketId,
+                        driverId: userId
+                    });
+                }
+            });
+        }
+
+        function requestTrip() {
+            if (!passengerSocket) return alert('Connect passenger first');
+            passengerSocket.emit('requestTrip', {
+                passengerId: document.getElementById('passId').value,
+                pickup: { lat: 4.6097, lng: -74.0817, name: 'Plaza de Bolívar' },
+                destination: { lat: 4.7110, lng: -74.0721, name: 'Terminal Norte' },
+                routeName: 'default'
+            });
+            log('Sent requestTrip event', 'ACTION');
+        }
+
+        function updateLocation() {
+            if (!driverSocket) return alert('Connect driver first');
+            const data = {
+                driverId: document.getElementById('driverId').value,
+                lat: 4.6097 + (Math.random() - 0.5) * 0.01,
+                lng: -74.0817 + (Math.random() - 0.5) * 0.01,
+                role: 'driver'
+            };
+            driverSocket.emit('updateLocation', data);
+            log(`Sent updateLocation: ${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}`, 'ACTION');
+        }
+    </script>
+</body>
+
+</html>
