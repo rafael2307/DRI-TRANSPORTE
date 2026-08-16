@@ -3,7 +3,8 @@ import { PaymentsService } from './payments.service';
 import { BankProvider } from './entities/bank-account.entity';
 import { User } from '../users/entities/user.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { JwtUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('payments')
 export class PaymentsController {

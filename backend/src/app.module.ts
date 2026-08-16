@@ -36,24 +36,39 @@ import { NotificationsModule } from './notifications/notifications.module';
     TripsModule,
     RedisModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'single',
-        url: `redis://${configService.get('REDIS_HOST', 'localhost')}:${configService.get('REDIS_PORT', 6379)}`,
-      }),
+      useFactory: (configService: ConfigService) => {
+        // Railway (y otros PaaS) exponen una REDIS_URL lista para usar,
+        // incluyendo password si aplica. En desarrollo local usamos
+        // REDIS_HOST/REDIS_PORT sueltos desde .env.
+        const url =
+          configService.get<string>('REDIS_URL') ||
+          `redis://${configService.get('REDIS_HOST', 'localhost')}:${configService.get('REDIS_PORT', 6379)}`;
+        return { type: 'single', url };
+      },
       inject: [ConfigService],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: configService.get<number>('DB_PORT'),
-        username: configService.get<string>('DB_USERNAME'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_DATABASE'),
-        autoLoadEntities: true,
-        synchronize: true, // Only for development!
-      }),
+      useFactory: (configService: ConfigService) => {
+        // Idem: Railway expone DATABASE_URL para el Postgres administrado.
+        // En local seguimos usando las variables sueltas del .env.
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+        const base = databaseUrl
+          ? { url: databaseUrl }
+          : {
+              host: configService.get<string>('DB_HOST'),
+              port: configService.get<number>('DB_PORT'),
+              username: configService.get<string>('DB_USERNAME'),
+              password: configService.get<string>('DB_PASSWORD'),
+              database: configService.get<string>('DB_DATABASE'),
+            };
+        return {
+          type: 'postgres',
+          ...base,
+          autoLoadEntities: true,
+          synchronize: true, // Only for development!
+        };
+      },
       inject: [ConfigService],
     }),
   ],

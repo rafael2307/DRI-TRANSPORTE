@@ -6,6 +6,7 @@ import {
   OnGatewayDisconnect,
   MessageBody,
   ConnectedSocket,
+  WsException,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { LocationService } from './location.service';
@@ -110,6 +111,18 @@ export class LocationGateway
     return trip;
   }
 
+  // client.data.user es opcional en el tipo porque handleConnection lo llena
+  // de forma asíncrona; los handlers con @UseGuards(WsJwtGuard) solo se
+  // ejecutan si ya está autenticado, así que acá lo garantizamos en runtime
+  // y evitamos repetir el chequeo en cada handler.
+  private getUser(client: AuthedSocket) {
+    const user = client.data.user;
+    if (!user) {
+      throw new WsException('No autenticado');
+    }
+    return user;
+  }
+
   @UseGuards(WsJwtGuard)
   @SubscribeMessage('updateLocation')
   async handleLocationUpdate(
@@ -121,8 +134,8 @@ export class LocationGateway
       serviceType?: string;
     },
   ) {
-    const user = client.data.user;
-    if (user?.role !== 'driver') return;
+    const user = this.getUser(client);
+    if (user.role !== 'driver') return;
 
     await this.locationService.updateDriverLocation(
       user.sub,
@@ -175,10 +188,11 @@ export class LocationGateway
       serviceType?: string;
     },
   ) {
-    if (client.data.user.role !== 'passenger') {
+    const user = this.getUser(client);
+    if (user.role !== 'passenger') {
       throw new Error('Solo un pasajero puede solicitar un viaje');
     }
-    const passengerId = client.data.user.sub;
+    const passengerId = user.sub;
 
     // 1. Persist trip to Database via TripsService
     const trip = await this.tripsService.requestTrip(
@@ -231,10 +245,11 @@ export class LocationGateway
     @MessageBody()
     data: { tripId: string; passengerSocketId: string },
   ) {
-    if (client.data.user.role !== 'driver') {
+    const user = this.getUser(client);
+    if (user.role !== 'driver') {
       throw new Error('Solo un conductor puede aceptar un viaje');
     }
-    const driverId = client.data.user.sub;
+    const driverId = user.sub;
 
     // 1. Update Trip in DB
     await this.tripsService.acceptTrip({ id: driverId } as any, data.tripId);
@@ -265,7 +280,7 @@ export class LocationGateway
     @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { tripId: string },
   ) {
-    await this.assertTripParty(data.tripId, client.data.user.sub, 'driver');
+    await this.assertTripParty(data.tripId, this.getUser(client).sub, 'driver');
     await this.tripsService.driverArrived(data.tripId);
     this.server
       .to(`trip_${data.tripId}`)
@@ -279,7 +294,7 @@ export class LocationGateway
     @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { tripId: string },
   ) {
-    await this.assertTripParty(data.tripId, client.data.user.sub, 'driver');
+    await this.assertTripParty(data.tripId, this.getUser(client).sub, 'driver');
     await this.tripsService.startTrip(data.tripId);
     this.server
       .to(`trip_${data.tripId}`)
@@ -293,7 +308,7 @@ export class LocationGateway
     @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { tripId: string },
   ) {
-    await this.assertTripParty(data.tripId, client.data.user.sub, 'driver');
+    await this.assertTripParty(data.tripId, this.getUser(client).sub, 'driver');
     await this.tripsService.completeTrip(data.tripId);
     this.server
       .to(`trip_${data.tripId}`)
@@ -307,7 +322,7 @@ export class LocationGateway
     @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { tripId: string; reason?: string },
   ) {
-    await this.assertTripParty(data.tripId, client.data.user.sub, 'either');
+    await this.assertTripParty(data.tripId, this.getUser(client).sub, 'either');
     await this.tripsService.cancelTrip(data.tripId);
     this.server
       .to(`trip_${data.tripId}`)
@@ -321,7 +336,7 @@ export class LocationGateway
     @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { tripId: string; message: string },
   ) {
-    const senderId = client.data.user.sub;
+    const senderId = this.getUser(client).sub;
     await this.assertTripParty(data.tripId, senderId, 'either');
 
     // AI Enhancement: Simulated Translation

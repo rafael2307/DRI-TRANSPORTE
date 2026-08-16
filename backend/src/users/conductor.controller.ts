@@ -12,7 +12,8 @@ import { Repository } from 'typeorm';
 import { ConductorProfile } from './entities/conductor-profile.entity';
 import { User } from './entities/user.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { JwtUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('conductor')
 export class ConductorController {

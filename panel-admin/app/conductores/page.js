@@ -5,8 +5,10 @@ export default function ConductoresPage() {
     const [conductores, setConductores] = useState([])
     const [loading, setLoading] = useState(true)
 
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
+
     useEffect(() => {
-        fetch('http://localhost:3000/conductor/pending')
+        fetch(`${API_URL}/conductor/pending`)
             .then(res => {
                 if (!res.ok) throw new Error('Not ok');
                 return res.json();
@@ -22,7 +24,7 @@ export default function ConductoresPage() {
     }, [])
 
     const handleApprove = async (id) => {
-        await fetch(`http://localhost:3000/conductor/approve/${id}`, { method: 'PATCH' })
+        await fetch(`${API_URL}/conductor/approve/${id}`, { method: 'PATCH' })
         setConductores(conductores.filter(c => c.id !== id))
         alert('Conductor aprobado exitosamente')
     }

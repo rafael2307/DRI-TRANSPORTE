@@ -8,7 +8,7 @@ export default function RetirosPage() {
     useEffect(() => {
         // In a real app, this would be an admin endpoint like /payments/retiros/pending
         // For now we simulate with a general fetch if needed or mock it
-        fetch('http://localhost:3000/payments/withdrawals/all')
+        fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/payments/withdrawals/all`)
             .then(res => {
                 if (!res.ok) throw new Error('Network response was not ok');
                 return res.json();

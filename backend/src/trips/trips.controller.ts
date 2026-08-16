@@ -3,7 +3,8 @@ import { TripsService } from './trips.service';
 import { TripStatus } from './entities/trip.entity';
 import { User } from '../users/entities/user.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { JwtUser } from '../auth/decorators/current-user.decorator';
 
 // Nota: el flujo real de viajes hoy corre por el WebSocket gateway
 // (location.gateway.ts), que todavía confía en el passengerId/driverId que
