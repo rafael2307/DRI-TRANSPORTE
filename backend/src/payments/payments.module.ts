@@ -4,6 +4,7 @@ import { PaymentConfig } from './entities/payment-config.entity';
 import { BankAccount } from './entities/bank-account.entity';
 import { Withdrawal } from './entities/withdrawal.entity';
 import { Transaction } from './entities/transaction.entity';
+import { Trip } from '../trips/entities/trip.entity';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 
@@ -14,6 +15,7 @@ import { PaymentsController } from './payments.controller';
       BankAccount,
       Withdrawal,
       Transaction,
+      Trip,
     ]),
   ],
   controllers: [PaymentsController],

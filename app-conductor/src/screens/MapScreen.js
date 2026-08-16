@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 const { width, height } = Dimensions.get('window');
 
 export default function MapScreen({ navigation, route }) {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const { serviceType = 'URBAN' } = route.params || {};
     const [location, setLocation] = useState(null);
     const [isOnline, setIsOnline] = useState(false);
@@ -27,8 +27,8 @@ export default function MapScreen({ navigation, route }) {
     const [currentMessage, setCurrentMessage] = useState('');
 
     useEffect(() => {
-        if (user && !socketService.socket) {
-            socketService.connect(user.id);
+        if (user && token && !socketService.socket) {
+            socketService.connect(token);
         }
 
         socketService.onNewTripRequest((data) => {
@@ -69,7 +69,7 @@ export default function MapScreen({ navigation, route }) {
                 (loc) => {
                     setLocation(loc.coords);
                     if (isOnline && user) {
-                        socketService.updateLocation(user.id, loc.coords.latitude, loc.coords.longitude, serviceType);
+                        socketService.updateLocation(loc.coords.latitude, loc.coords.longitude, serviceType);
                     }
                 }
             );
@@ -87,8 +87,7 @@ export default function MapScreen({ navigation, route }) {
     const handleAcceptTrip = () => {
         socketService.acceptTrip({
             tripId: pendingTrip.tripId,
-            passengerSocketId: pendingTrip.passengerSocketId,
-            driverId: user?.id
+            passengerSocketId: pendingTrip.passengerSocketId
         });
         setActiveTrip({
             id: pendingTrip.tripId,
@@ -135,7 +134,7 @@ export default function MapScreen({ navigation, route }) {
 
     const handleSendMessage = () => {
         if (!currentMessage.trim()) return;
-        socketService.sendMessage(activeTrip.id, user.id, currentMessage);
+        socketService.sendMessage(activeTrip.id, currentMessage);
         setCurrentMessage('');
     };
 

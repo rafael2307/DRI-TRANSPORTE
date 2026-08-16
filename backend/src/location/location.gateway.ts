@@ -10,9 +10,15 @@ import {
 import { Server, Socket } from 'socket.io';
 import { LocationService } from './location.service';
 import { TripsService } from '../trips/trips.service';
-import { Logger, Inject, forwardRef } from '@nestjs/common';
-import { TripStatus } from '../trips/entities/trip.entity';
+import { Logger, Inject, forwardRef, UseGuards } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { AiService } from '../ai/ai.service';
+import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+
+interface AuthedSocket extends Socket {
+  data: { user?: { sub: string; username: string; role: string } };
+}
 
 @WebSocketGateway({
   cors: {
@@ -32,20 +38,45 @@ export class LocationGateway
     @Inject(forwardRef(() => TripsService))
     private readonly tripsService: TripsService,
     private readonly aiService: AiService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
-  async handleConnection(client: Socket) {
-    const userId = client.handshake.query.userId as string;
-    if (userId) {
-      await this.locationService.registerSocket(userId, client.id);
-      this.logger.log(`User ${userId} connected as ${client.id}`);
-    } else {
-      this.logger.log(`Anonymous client connected: ${client.id}`);
+  // Los guards de Nest solo interceptan @SubscribeMessage, no los hooks de
+  // ciclo de vida (OnGatewayConnection). Por eso validamos el JWT a mano acá:
+  // si no viene un token válido, el socket se rechaza antes de registrar nada.
+  async handleConnection(client: AuthedSocket) {
+    try {
+      const token =
+        (client.handshake.auth?.token as string) ||
+        (client.handshake.headers?.authorization as string)?.replace(
+          'Bearer ',
+          '',
+        );
+
+      if (!token) {
+        this.logger.warn(`Socket ${client.id} rechazado: sin token`);
+        client.emit('unauthorized', { message: 'No token provided' });
+        client.disconnect(true);
+        return;
+      }
+
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get<string>('JWT_SECRET') || 'secret',
+      });
+
+      client.data.user = payload;
+      await this.locationService.registerSocket(payload.sub, client.id);
+      this.logger.log(`User ${payload.sub} connected as ${client.id}`);
+    } catch (err) {
+      this.logger.warn(`Socket ${client.id} rechazado: token inválido`);
+      client.emit('unauthorized', { message: 'Invalid or expired token' });
+      client.disconnect(true);
     }
   }
 
-  async handleDisconnect(client: Socket) {
-    const userId = client.handshake.query.userId as string;
+  async handleDisconnect(client: AuthedSocket) {
+    const userId = client.data?.user?.sub;
     if (userId) {
       await this.locationService.removeSocket(userId);
       this.logger.log(`User ${userId} disconnected`);
@@ -54,38 +85,63 @@ export class LocationGateway
     }
   }
 
+  // Verifica que quien llama sea el conductor o el pasajero del viaje.
+  // Evita que cualquier socket autenticado pueda mover el estado de un viaje
+  // ajeno solo con adivinar/tener el tripId.
+  private async assertTripParty(
+    tripId: string,
+    userId: string,
+    role: 'driver' | 'passenger' | 'either',
+  ) {
+    const trip = await this.tripsService.getTrip(tripId);
+    const isDriver = trip.driver?.id === userId;
+    const isPassenger = trip.passenger?.id === userId;
+
+    const authorized =
+      role === 'driver'
+        ? isDriver
+        : role === 'passenger'
+          ? isPassenger
+          : isDriver || isPassenger;
+
+    if (!authorized) {
+      throw new Error('No autorizado para este viaje');
+    }
+    return trip;
+  }
+
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('updateLocation')
   async handleLocationUpdate(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthedSocket,
     @MessageBody()
     data: {
-      driverId: string;
       lat: number;
       lng: number;
-      role: string;
       serviceType?: string;
     },
   ) {
-    if (data.role === 'driver') {
-      await this.locationService.updateDriverLocation(
-        data.driverId,
-        data.lat,
-        data.lng,
-        data.serviceType,
-      );
+    const user = client.data.user;
+    if (user?.role !== 'driver') return;
 
-      // Broadcast to nearby passengers or a general updates channel
-      this.server.emit('driverLocationUpdated', {
-        driverId: data.driverId,
-        lat: data.lat,
-        lng: data.lng,
-      });
-    }
+    await this.locationService.updateDriverLocation(
+      user.sub,
+      data.lat,
+      data.lng,
+      data.serviceType,
+    );
+
+    this.server.emit('driverLocationUpdated', {
+      driverId: user.sub,
+      lat: data.lat,
+      lng: data.lng,
+    });
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('findDrivers')
   async handleFindDrivers(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { lat: number; lng: number; serviceType?: string },
   ) {
     const driversResults = await this.locationService.findNearbyDrivers(
@@ -107,23 +163,26 @@ export class LocationGateway
     client.emit('nearbyDrivers', formattedDrivers);
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('requestTrip')
   async handleTripRequest(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthedSocket,
     @MessageBody()
     data: {
-      passengerId: string;
       pickup: { lat: number; lng: number; name: string };
       destination: { lat: number; lng: number; name: string };
       routeName?: string;
       serviceType?: string;
     },
   ) {
+    if (client.data.user.role !== 'passenger') {
+      throw new Error('Solo un pasajero puede solicitar un viaje');
+    }
+    const passengerId = client.data.user.sub;
+
     // 1. Persist trip to Database via TripsService
-    // Note: we need to pass a partial User object or look it up.
-    // For simplicity in this step, assume passengerId is valid.
     const trip = await this.tripsService.requestTrip(
-      { id: data.passengerId } as any,
+      { id: passengerId } as any,
       {
         pickupName: data.pickup.name,
         lat1: data.pickup.lat,
@@ -165,17 +224,20 @@ export class LocationGateway
     );
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('acceptTrip')
   async handleAcceptTrip(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthedSocket,
     @MessageBody()
-    data: { tripId: string; passengerSocketId: string; driverId: string },
+    data: { tripId: string; passengerSocketId: string },
   ) {
+    if (client.data.user.role !== 'driver') {
+      throw new Error('Solo un conductor puede aceptar un viaje');
+    }
+    const driverId = client.data.user.sub;
+
     // 1. Update Trip in DB
-    await this.tripsService.acceptTrip(
-      { id: data.driverId } as any,
-      data.tripId,
-    );
+    await this.tripsService.acceptTrip({ id: driverId } as any, data.tripId);
 
     // 2. Join both to a Trip Room
     client.join(`trip_${data.tripId}`);
@@ -188,20 +250,22 @@ export class LocationGateway
 
     // 3. Notify passenger
     this.server.to(data.passengerSocketId).emit('tripAccepted', {
-      driverId: data.driverId,
+      driverId,
       tripId: data.tripId,
     });
 
     this.logger.log(
-      `Trip ${data.tripId} accepted by driver ${data.driverId}. Room created.`,
+      `Trip ${data.tripId} accepted by driver ${driverId}. Room created.`,
     );
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('driverArrived')
   async handleDriverArrived(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { tripId: string },
   ) {
+    await this.assertTripParty(data.tripId, client.data.user.sub, 'driver');
     await this.tripsService.driverArrived(data.tripId);
     this.server
       .to(`trip_${data.tripId}`)
@@ -209,11 +273,13 @@ export class LocationGateway
     this.logger.log(`Driver arrived for trip ${data.tripId}.`);
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('startTrip')
   async handleStartTrip(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { tripId: string },
   ) {
+    await this.assertTripParty(data.tripId, client.data.user.sub, 'driver');
     await this.tripsService.startTrip(data.tripId);
     this.server
       .to(`trip_${data.tripId}`)
@@ -221,11 +287,13 @@ export class LocationGateway
     this.logger.log(`Trip ${data.tripId} started.`);
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('completeTrip')
   async handleCompleteTrip(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { tripId: string },
   ) {
+    await this.assertTripParty(data.tripId, client.data.user.sub, 'driver');
     await this.tripsService.completeTrip(data.tripId);
     this.server
       .to(`trip_${data.tripId}`)
@@ -233,11 +301,13 @@ export class LocationGateway
     this.logger.log(`Trip ${data.tripId} completed.`);
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('cancelTrip')
   async handleCancelTrip(
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: AuthedSocket,
     @MessageBody() data: { tripId: string; reason?: string },
   ) {
+    await this.assertTripParty(data.tripId, client.data.user.sub, 'either');
     await this.tripsService.cancelTrip(data.tripId);
     this.server
       .to(`trip_${data.tripId}`)
@@ -245,11 +315,15 @@ export class LocationGateway
     this.logger.log(`Trip ${data.tripId} cancelled.`);
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('sendMessage')
   async handleSendMessage(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { tripId: string; senderId: string; message: string },
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() data: { tripId: string; message: string },
   ) {
+    const senderId = client.data.user.sub;
+    await this.assertTripParty(data.tripId, senderId, 'either');
+
     // AI Enhancement: Simulated Translation
     const translatedContent = await this.aiService.translateMessage(
       data.message,
@@ -257,13 +331,13 @@ export class LocationGateway
 
     this.server.to(`trip_${data.tripId}`).emit('newMessage', {
       tripId: data.tripId,
-      senderId: data.senderId,
+      senderId,
       message: data.message, // Original
       translated: translatedContent, // Enhanced content
       timestamp: new Date().toISOString(),
     });
     this.logger.log(
-      `Message from ${data.senderId} in trip ${data.tripId}: ${data.message} (AI Trans: ${translatedContent})`,
+      `Message from ${senderId} in trip ${data.tripId}: ${data.message} (AI Trans: ${translatedContent})`,
     );
   }
 }

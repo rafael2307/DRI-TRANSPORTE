@@ -23,7 +23,7 @@ export const AuthProvider = ({ children }) => {
                     setToken(savedToken);
                     setRefreshToken(savedRefreshToken);
                     setUser(JSON.parse(savedUser));
-                    socketService.connect(JSON.parse(savedUser).id);
+                    socketService.connect(savedToken);
                 }
             } catch (e) {
                 console.error('Failed to load session', e);
@@ -68,7 +68,7 @@ export const AuthProvider = ({ children }) => {
 
             if (data.access_token) {
                 await saveSession(data);
-                socketService.connect(data.user.id);
+                socketService.connect(data.access_token);
                 // Register FCM token after successful login
                 const fcmToken = await registerForPushNotificationsAsync();
                 if (fcmToken) {

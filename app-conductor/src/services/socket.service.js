@@ -5,9 +5,9 @@ const SOCKET_URL = 'http://localhost:3000'; // Update with your local IP for phy
 class SocketService {
     socket = null;
 
-    connect(userId) {
+    connect(token) {
         this.socket = io(SOCKET_URL, {
-            query: { userId }
+            auth: { token }
         });
 
         this.socket.on('connect', () => {
@@ -16,6 +16,10 @@ class SocketService {
 
         this.socket.on('disconnect', () => {
             console.log('Disconnected from socket server');
+        });
+
+        this.socket.on('unauthorized', (err) => {
+            console.error('Socket no autorizado:', err?.message);
         });
     }
 
@@ -55,9 +59,9 @@ class SocketService {
         }
     }
 
-    sendMessage(tripId, senderId, message) {
+    sendMessage(tripId, message) {
         if (this.socket) {
-            this.socket.emit('sendMessage', { tripId, senderId, message });
+            this.socket.emit('sendMessage', { tripId, message });
         }
     }
 
@@ -67,15 +71,9 @@ class SocketService {
         }
     }
 
-    updateLocation(driverId, lat, lng, serviceType) {
+    updateLocation(lat, lng, serviceType) {
         if (this.socket) {
-            this.socket.emit('updateLocation', {
-                driverId,
-                lat,
-                lng,
-                role: 'driver',
-                serviceType
-            });
+            this.socket.emit('updateLocation', { lat, lng, serviceType });
         }
     }
 

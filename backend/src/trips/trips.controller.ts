@@ -1,47 +1,61 @@
-import { Controller, Post, Body, Get, Param, Patch } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { TripsService } from './trips.service';
 import { TripStatus } from './entities/trip.entity';
 import { User } from '../users/entities/user.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 
+// Nota: el flujo real de viajes hoy corre por el WebSocket gateway
+// (location.gateway.ts), que todavía confía en el passengerId/driverId que
+// manda el cliente. Este controller REST no está siendo llamado por las apps
+// (usan sockets), pero lo protegemos igual por si se usa desde un panel admin
+// u otro cliente futuro.
 @Controller('trips')
 export class TripsController {
   constructor(private readonly tripsService: TripsService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post('request')
-  async requestTrip(@Body() data: any) {
-    const mockPassenger = { id: data.passengerId } as User;
-    return this.tripsService.requestTrip(mockPassenger, data);
+  async requestTrip(@CurrentUser() currentUser: JwtUser, @Body() data: any) {
+    const passenger = { id: currentUser.sub } as User;
+    return this.tripsService.requestTrip(passenger, data);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post(':id/accept')
   async acceptTrip(
+    @CurrentUser() currentUser: JwtUser,
     @Param('id') id: string,
-    @Body() data: { driverId: string },
   ) {
-    const mockDriver = { id: data.driverId } as User;
-    return this.tripsService.acceptTrip(mockDriver, id);
+    const driver = { id: currentUser.sub } as User;
+    return this.tripsService.acceptTrip(driver, id);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   async getTrip(@Param('id') id: string) {
     return this.tripsService.getTrip(id);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/arrived')
   async driverArrived(@Param('id') id: string) {
     return this.tripsService.driverArrived(id);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/start')
   async startTrip(@Param('id') id: string) {
     return this.tripsService.startTrip(id);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/complete')
   async completeTrip(@Param('id') id: string) {
     return this.tripsService.completeTrip(id);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/cancel')
   async cancelTrip(@Param('id') id: string) {
     return this.tripsService.cancelTrip(id);

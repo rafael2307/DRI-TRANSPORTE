@@ -5,9 +5,13 @@ const SOCKET_URL = 'http://localhost:3000';
 class SocketService {
     socket = null;
 
-    connect(userId) {
+    connect(token) {
         this.socket = io(SOCKET_URL, {
-            query: { userId }
+            auth: { token }
+        });
+
+        this.socket.on('unauthorized', (err) => {
+            console.error('Socket no autorizado:', err?.message);
         });
     }
 
@@ -53,9 +57,9 @@ class SocketService {
         }
     }
 
-    sendMessage(tripId, senderId, message) {
+    sendMessage(tripId, message) {
         if (this.socket) {
-            this.socket.emit('sendMessage', { tripId, senderId, message });
+            this.socket.emit('sendMessage', { tripId, message });
         }
     }
 

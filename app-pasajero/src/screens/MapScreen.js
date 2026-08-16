@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, SafeAreaView, Dimensions, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
+import * as WebBrowser from 'expo-web-browser';
 import { theme } from '../theme/theme';
 import { GlassCard } from '../components/GlassCard';
 import { Search, MapPin, Navigation, Settings, CreditCard, MessageCircle, Mic, X, Car } from 'lucide-react-native';
@@ -20,7 +21,7 @@ const MUNICIPALITIES = [
 ];
 
 export default function MapScreen() {
-    const { user } = useAuth();
+    const { user, token } = useAuth();
     const [location, setLocation] = useState(null);
     const [drivers, setDrivers] = useState({});
     const [serviceType, setServiceType] = useState('URBAN'); // URBAN or INTERMUNICIPAL
@@ -36,9 +37,9 @@ export default function MapScreen() {
 
     useEffect(() => {
         // Socket connection is handled by AuthProvider or manually if needed
-        // but here we ensure we are connected with the real user.id
-        if (user && !socketService.socket) {
-            socketService.connect(user.id);
+        // but here we ensure we are connected with el token real del usuario
+        if (user && token && !socketService.socket) {
+            socketService.connect(token);
         }
 
         (async () => {
@@ -119,7 +120,6 @@ export default function MapScreen() {
             : { lat: 4.8617, lng: -74.0531, name: destMunicipality?.name || 'Chía' };
 
         socketService.requestTrip({
-            passengerId: user?.id || 'pax-unknown',
             pickup: { lat: location.latitude, lng: location.longitude, name: 'Mi ubicación' },
             destination: dest,
             routeName: serviceType === 'URBAN' ? 'default' : (destMunicipality?.name || 'inter_base'),
@@ -127,41 +127,71 @@ export default function MapScreen() {
         });
     };
 
+    // Consulta el estado real de la transacción, que solo cambia cuando Wompi
+    // llama a nuestro webhook (verificado con firma). Reintenta unos segundos
+    // porque ese webhook llega de forma asíncrona, después de cerrar el navegador.
+    const pollTransactionStatus = async (reference, attempts = 10, delayMs = 2000) => {
+        for (let i = 0; i < attempts; i++) {
+            try {
+                const res = await fetch(`http://localhost:3000/payments/transactions/${reference}`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    const tx = await res.json();
+                    if (tx.status && tx.status !== 'PENDING') return tx.status;
+                }
+            } catch (e) {
+                // ignore transient network errors while polling
+            }
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+        return 'PENDING';
+    };
+
     const handlePayment = async () => {
         setIsPaying(true);
         try {
             const amount = serviceType === 'URBAN' ? 8500 : (destMunicipality?.price || 25000);
 
-            // 1. Get checkout data from backend
+            // 1. Pedir al backend la sesión de checkout (firma real + URL de Wompi)
             const response = await fetch('http://localhost:3000/payments/checkout', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.id, amount })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ amount, tripId: activeTrip?.id })
             });
+            if (!response.ok) throw new Error('No se pudo iniciar el pago');
             const checkoutData = await response.json();
 
-            // 2. Simulate Wompi Webhook (in real life, Wompi calls the backend)
-            // We'll call the backend ourselves to simulate success for this demo
-            await fetch('http://localhost:3000/payments/webhook', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    event: 'transaction.updated',
-                    data: {
-                        transaction: {
-                            reference: checkoutData.reference,
-                            status: 'APPROVED',
-                            id: 'WOMPI_SIM_123'
-                        }
-                    }
-                })
-            });
+            // 2. Abrir el checkout hospedado real de Wompi y esperar a que el
+            // usuario complete el pago y sea redirigido de vuelta a la app.
+            const result = await WebBrowser.openAuthSessionAsync(
+                checkoutData.checkoutUrl,
+                'dripasajero://payment-result'
+            );
 
-            alert('¡Pago procesado exitosamente con Wompi!');
-            setTripStatus(null);
-            setDestMunicipality(null);
+            if (result.type !== 'success') {
+                alert('Pago cancelado');
+                return;
+            }
+
+            // 3. Confirmar el resultado real: Wompi le avisa a nuestro backend
+            // por webhook (con firma verificada), no al cliente.
+            const finalStatus = await pollTransactionStatus(checkoutData.reference);
+
+            if (finalStatus === 'APPROVED') {
+                alert('¡Pago procesado exitosamente con Wompi!');
+                setTripStatus(null);
+                setDestMunicipality(null);
+            } else if (finalStatus === 'DECLINED' || finalStatus === 'ERROR') {
+                alert('El pago no fue aprobado. Intenta de nuevo o usa otro método.');
+            } else {
+                alert('Wompi todavía está confirmando el pago. Revisa tu historial en unos minutos.');
+            }
         } catch (error) {
-            alert('Error al procesar el pago');
+            alert('Error al procesar el pago: ' + error.message);
         } finally {
             setIsPaying(false);
         }
@@ -199,7 +229,7 @@ export default function MapScreen() {
 
     const handleSendMessage = () => {
         if (!currentMessage.trim()) return;
-        socketService.sendMessage(activeTrip?.tripId, user.id, currentMessage);
+        socketService.sendMessage(activeTrip?.tripId, currentMessage);
         setCurrentMessage('');
     };
 

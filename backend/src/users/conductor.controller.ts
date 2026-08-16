@@ -3,7 +3,6 @@ import {
   Post,
   Body,
   UseGuards,
-  Request,
   Get,
   Param,
   Patch,
@@ -12,6 +11,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConductorProfile } from './entities/conductor-profile.entity';
 import { User } from './entities/user.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser, JwtUser } from '../auth/decorators/current-user.decorator';
 
 @Controller('conductor')
 export class ConductorController {
@@ -22,11 +23,14 @@ export class ConductorController {
     private userRepo: Repository<User>,
   ) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post('profile')
-  async updateProfile(@Body() data: any) {
-    // En una implementación real usaríamos @UseGuards(JwtAuthGuard)
-    // para obtener el userId del token. Por ahora recibimos userId en el body
-    const { userId, docs } = data;
+  async updateProfile(
+    @CurrentUser() currentUser: JwtUser,
+    @Body() data: any,
+  ) {
+    const userId = currentUser.sub;
+    const { docs } = data;
 
     let profile = await this.profileRepo.findOne({
       where: { user: { id: userId } },
@@ -50,6 +54,9 @@ export class ConductorController {
     return this.profileRepo.save(profile);
   }
 
+  // TODO: reemplazar por un RolesGuard('admin') real cuando exista control de
+  // roles en el backend. Por ahora solo exige estar autenticado.
+  @UseGuards(JwtAuthGuard)
   @Get('pending')
   async getPending() {
     return this.profileRepo.find({
@@ -58,6 +65,7 @@ export class ConductorController {
     });
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch('approve/:id')
   async approve(@Param('id') id: string) {
     return this.profileRepo.update(id, { isApproved: true } as any);

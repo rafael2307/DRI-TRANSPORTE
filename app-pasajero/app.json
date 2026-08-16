@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "DRI Pasajero",
+    "slug": "dri-pasajero",
+    "scheme": "dripasajero",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dri.pasajero"
+    },
+    "android": {
+      "package": "com.dri.pasajero"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
