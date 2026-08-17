@@ -4,10 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neo-Motion Hub Central</title>
+    <title>DRI — Transporte de pasajeros</title>
+    <meta name="description" content="DRI conecta pasajeros y conductores en tu ciudad: viajes seguros, pagos con Wompi y ganancias flexibles para conductores.">
     <script src="https://cdn.tailwindcss.com"></script>
     <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&family=Inter:wght@400;500;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
@@ -19,259 +20,257 @@
                         heading: ['Outfit', 'sans-serif'],
                     },
                     colors: {
-                        electric: '#0F172A',
-                        neon: '#8B5CF6',
-                        cyber: '#3B82F6',
-                        success: '#10B981',
-                        warning: '#F59E0B',
-                        trust: '#2563EB',
-                        growth: '#059669',
-                        authority: '#6366F1',
+                        primary: '#6366f1',
+                        primaryLight: '#818CF8',
+                        accent: '#38bdf8',
+                        success: '#10b981',
+                        warning: '#f59e0b',
                     },
-                    animation: {
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        'float': 'float 6s ease-in-out infinite',
-                    },
-                    keyframes: {
-                        float: {
-                            '0%, 100%': { transform: 'translateY(0)' },
-                            '50%': { transform: 'translateY(-10px)' },
-                        }
-                    }
                 }
             }
         }
     </script>
     <style>
         body {
-            background-color: #050505;
+            background-color: #0f172a;
             background-image:
-                radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
-            color: #ffffff;
-            min-height: 100vh;
+                radial-gradient(circle at 15% 0%, rgba(99, 102, 241, 0.18) 0%, transparent 45%),
+                radial-gradient(circle at 85% 20%, rgba(56, 189, 248, 0.15) 0%, transparent 45%);
+            color: #f8fafc;
             font-family: 'Inter', sans-serif;
             overflow-x: hidden;
         }
 
+        h1, h2, h3 { font-family: 'Outfit', sans-serif; }
+
         .glass-card {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-            transition: all 0.3s ease;
+            border-radius: 1rem;
+            transition: all 0.2s ease;
         }
 
         .glass-card:hover {
-            transform: translateY(-5px) scale(1.02);
-            border-color: rgba(255, 255, 255, 0.2);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            border-color: rgba(99, 102, 241, 0.35);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
         }
 
-        .glow-border {
-            position: relative;
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1, #818CF8);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .glow-border::before {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            background: linear-gradient(45deg, #3B82F6, #8B5CF6, #F59E0B, #10B981);
-            z-index: -1;
-            border-radius: inherit;
-            filter: blur(10px);
-            opacity: 0;
-            transition: opacity 0.3s ease;
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
         }
 
-        .glass-card:hover.glow-border::before {
-            opacity: 0.5;
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #f8fafc;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
         }
 
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-            box-shadow: 0 0 10px currentColor;
-        }
+        .btn-ghost:hover { border-color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.08); }
 
-        /* Ambient grid background */
-        .grid-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-image:
-                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-            background-size: 50px 50px;
-            z-index: -2;
-            transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
-            animation: grid-move 20s linear infinite;
-            opacity: 0.3;
-        }
-
-        @keyframes grid-move {
-            0% {
-                transform: perspective(500px) rotateX(60deg) translateY(0) translateZ(-200px);
-            }
-
-            100% {
-                transform: perspective(500px) rotateX(60deg) translateY(50px) translateZ(-200px);
-            }
+        .store-badge {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 8px 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: #94a3b8;
         }
     </style>
 </head>
 
-<body class="relative flex flex-col items-center justify-center p-6 sm:p-12">
+<body class="min-h-screen">
 
-    <div class="grid-bg"></div>
-
-    <!-- Header Section -->
-    <header class="text-center mb-16 animate-float z-10">
-        <div
-            class="inline-block p-4 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-6 shadow-[0_0_30px_rgba(59,130,246,0.2)]">
-            <i
-                class="fa-solid fa-layer-group text-4xl text-transparent bg-clip-text bg-gradient-to-r from-cyber to-neon"></i>
+    <!-- Nav -->
+    <header class="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                <i class="fa-solid fa-route text-white text-sm"></i>
+            </div>
+            <span class="font-heading font-bold text-lg">DRI</span>
         </div>
-        <h1 class="font-heading text-5xl md:text-7xl font-extrabold mb-4 tracking-tight">
-            Neo<span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-500">-Motion</span>
-        </h1>
-        <p class="text-gray-400 text-lg md:text-xl font-light max-w-2xl mx-auto">
-            Central Hub para el Sistema Integral de Transporte. Accede a las interfaces desplegadas desde este panel
-            maestro.
-        </p>
+        <nav class="hidden md:flex items-center gap-8 text-sm text-slate-300">
+            <a href="#como-funciona" class="hover:text-white transition">Cómo funciona</a>
+            <a href="#pasajeros" class="hover:text-white transition">Pasajeros</a>
+            <a href="#conductores" class="hover:text-white transition">Conductores</a>
+            <a href="#contacto" class="hover:text-white transition">Contacto</a>
+        </nav>
+        <a href="#contacto" class="btn-ghost !py-2 !px-4 text-sm">Contáctanos</a>
     </header>
 
-    <!-- Services Grid -->
-    <main class="w-full max-w-6xl grid grid-cols-1 md:grid-cols-2 gap-8 z-10 relative">
-
-        <!-- App Pasajero — Psicología: Azul (Confianza, Seguridad, Calma) -->
-        <a href="http://localhost:8081" target="_blank"
-            class="glass-card glow-border rounded-3xl p-8 flex flex-col group"
-            style="border-color: rgba(37, 99, 235, 0.2);">
-            <div class="flex justify-between items-start mb-6">
-                <div
-                    class="bg-blue-500/20 w-16 h-16 rounded-2xl flex items-center justify-center border border-blue-500/30 group-hover:bg-blue-500/40 transition">
-                    <i class="fa-solid fa-user text-2xl text-blue-400"></i>
-                </div>
-                <div
-                    class="bg-white/5 px-3 py-1 rounded-full text-xs font-semibold flex items-center border border-white/10">
-                    <span class="status-dot text-blue-400 bg-blue-400 animate-pulse-slow"></span>
-                    Puerto 8081
-                </div>
-            </div>
-            <h2 class="font-heading text-3xl font-bold mb-3" style="color: #3B82F6;">App Pasajero</h2>
-            <p class="text-gray-400 font-light flex-grow mb-6">Interfaz principal para que los usuarios soliciten
-                viajes, sigan su ruta y califiquen el servicio.</p>
-            <div class="flex items-center font-semibold group-hover:translate-x-2 transition-transform" style="color: #3B82F6;">
-                Abrir Servicio <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
-            </div>
-        </a>
-
-        <!-- App Conductor — Psicología: Verde (Dinero, Crecimiento, Acción) -->
-        <a href="http://localhost:8082" target="_blank"
-            class="glass-card glow-border rounded-3xl p-8 flex flex-col group"
-            style="border-color: rgba(5, 150, 105, 0.2);">
-            <div class="flex justify-between items-start mb-6">
-                <div
-                    class="w-16 h-16 rounded-2xl flex items-center justify-center border transition"
-                    style="background: rgba(5, 150, 105, 0.2); border-color: rgba(5, 150, 105, 0.3);"
-                    onmouseover="this.style.background='rgba(5, 150, 105, 0.4)'"
-                    onmouseout="this.style.background='rgba(5, 150, 105, 0.2)'">
-                    <i class="fa-solid fa-car-side text-2xl" style="color: #10B981;"></i>
-                </div>
-                <div
-                    class="bg-white/5 px-3 py-1 rounded-full text-xs font-semibold flex items-center border border-white/10">
-                    <span class="status-dot" style="color: #10B981; background: #10B981;"></span>
-                    Puerto 8082
-                </div>
-            </div>
-            <h2 class="font-heading text-3xl font-bold mb-3" style="color: #10B981;">App Conductor</h2>
-            <p class="text-gray-400 font-light flex-grow mb-6">Plataforma para conductores: recepción de viajes,
-                navegación en tiempo real y ganancias.</p>
-            <div class="flex items-center font-semibold group-hover:translate-x-2 transition-transform" style="color: #10B981;">
-                Abrir Servicio <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
-            </div>
-        </a>
-
-        <!-- Panel Administrativo — Psicología: Índigo (Autoridad, Control, Sabiduría) -->
-        <a href="http://localhost:3001" target="_blank"
-            class="glass-card glow-border rounded-3xl p-8 flex flex-col group"
-            style="border-color: rgba(99, 102, 241, 0.2);">
-            <div class="flex justify-between items-start mb-6">
-                <div
-                    class="w-16 h-16 rounded-2xl flex items-center justify-center border transition"
-                    style="background: rgba(99, 102, 241, 0.2); border-color: rgba(99, 102, 241, 0.3);"
-                    onmouseover="this.style.background='rgba(99, 102, 241, 0.4)'"
-                    onmouseout="this.style.background='rgba(99, 102, 241, 0.2)'">
-                    <i class="fa-solid fa-chart-line text-2xl" style="color: #818CF8;"></i>
-                </div>
-                <div
-                    class="bg-white/5 px-3 py-1 rounded-full text-xs font-semibold flex items-center border border-white/10">
-                    <span class="status-dot" style="color: #818CF8; background: #818CF8;"></span>
-                    Puerto 3001
-                </div>
-            </div>
-            <h2 class="font-heading text-3xl font-bold mb-3" style="color: #818CF8;">Panel Admin</h2>
-            <p class="text-gray-400 font-light flex-grow mb-6">Dashboard de control para supervisar viajes, gestionar
-                usuarios y analizar finanzas del sistema.</p>
-            <div class="flex items-center font-semibold group-hover:translate-x-2 transition-transform" style="color: #818CF8;">
-                Abrir Servicio <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
-            </div>
-        </a>
-
-        <!-- Backend API — Psicología: Púrpura (Innovación, Infraestructura, Premium) -->
-        <a href="http://localhost:3000/api" target="_blank"
-            class="glass-card glow-border rounded-3xl p-8 flex flex-col group"
-            style="border-color: rgba(139, 92, 246, 0.2);">
-            <div class="flex justify-between items-start mb-6">
-                <div
-                    class="w-16 h-16 rounded-2xl flex items-center justify-center border transition"
-                    style="background: rgba(139, 92, 246, 0.2); border-color: rgba(139, 92, 246, 0.3);"
-                    onmouseover="this.style.background='rgba(139, 92, 246, 0.4)'"
-                    onmouseout="this.style.background='rgba(139, 92, 246, 0.2)'">
-                    <i class="fa-solid fa-server text-2xl" style="color: #A78BFA;"></i>
-                </div>
-                <div
-                    class="bg-white/5 px-3 py-1 rounded-full text-xs font-semibold flex items-center border border-white/10">
-                    <span class="status-dot" style="color: #A78BFA; background: #A78BFA;"></span>
-                    Puerto 3000
-                </div>
-            </div>
-            <h2 class="font-heading text-3xl font-bold mb-3" style="color: #A78BFA;">Backend API</h2>
-            <p class="text-gray-400 font-light flex-grow mb-6">Motor central del sistema (NestJS Core). Gestiona lógica
-                de negocio, base de datos y WebSockets en tiempo real.</p>
-            <div class="flex items-center font-semibold group-hover:translate-x-2 transition-transform" style="color: #A78BFA;">
-                Verificar Salud API <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
-            </div>
-        </a>
-
-    </main>
-
-    <!-- Footer Instructions -->
-    <footer class="mt-20 text-center z-10 max-w-2xl bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-md">
-        <h3 class="font-bold text-white mb-2 flex items-center justify-center">
-            <i class="fa-solid fa-terminal mr-2 text-gray-400"></i> ¿Cómo levantar el entorno?
-        </h3>
-        <p class="text-sm text-gray-400 text-left space-y-2">
-            Abre 4 terminales separadas en el directorio raíz y ejecuta:<br><br>
-            <span class="block bg-black/50 p-2 rounded text-green-400 font-mono text-xs">Terminal 1: cd backend && npm
-                run start:dev</span>
-            <span class="block bg-black/50 p-2 rounded text-green-400 font-mono text-xs">Terminal 2: cd panel-admin &&
-                npm run dev</span>
-            <span class="block bg-black/50 p-2 rounded text-green-400 font-mono text-xs">Terminal 3: cd app-pasajero &&
-                npm run web</span>
-            <span class="block bg-black/50 p-2 rounded text-green-400 font-mono text-xs">Terminal 4: cd app-conductor &&
-                npm run web</span>
+    <!-- Hero -->
+    <section class="max-w-6xl mx-auto px-6 pt-10 pb-20 text-center">
+        <div class="inline-flex items-center gap-2 store-badge mb-6">
+            <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+            Lanzamiento en curso — súmate ahora
+        </div>
+        <h1 class="font-heading text-4xl md:text-6xl font-extrabold leading-tight mb-6 max-w-3xl mx-auto">
+            Moverte por tu ciudad,
+            <span class="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">sin complicaciones</span>
+        </h1>
+        <p class="text-slate-400 text-lg max-w-xl mx-auto mb-10">
+            DRI conecta pasajeros y conductores en tiempo real: pide tu viaje, sigue tu ruta en el mapa
+            y paga seguro desde la app. Para conductores, ganancias claras y retiros cuando quieras.
         </p>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a href="#pasajeros" class="btn-primary">
+                <i class="fa-solid fa-mobile-screen"></i> Quiero viajar
+            </a>
+            <a href="#conductores" class="btn-ghost">
+                <i class="fa-solid fa-car-side"></i> Quiero manejar
+            </a>
+        </div>
+    </section>
+
+    <!-- Trust strip -->
+    <section class="max-w-6xl mx-auto px-6 pb-20">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="glass-card p-5 flex items-center gap-4">
+                <i class="fa-solid fa-shield-halved text-2xl text-accent"></i>
+                <div>
+                    <p class="font-semibold text-sm">Conductores verificados</p>
+                    <p class="text-xs text-slate-400">Documentos y vehículo validados</p>
+                </div>
+            </div>
+            <div class="glass-card p-5 flex items-center gap-4">
+                <i class="fa-solid fa-credit-card text-2xl text-accent"></i>
+                <div>
+                    <p class="font-semibold text-sm">Pagos con Wompi</p>
+                    <p class="text-xs text-slate-400">Tarjeta, PSE y billeteras digitales</p>
+                </div>
+            </div>
+            <div class="glass-card p-5 flex items-center gap-4">
+                <i class="fa-solid fa-location-crosshairs text-2xl text-accent"></i>
+                <div>
+                    <p class="font-semibold text-sm">Seguimiento en vivo</p>
+                    <p class="text-xs text-slate-400">Ruta y chat en tiempo real</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cómo funciona -->
+    <section id="como-funciona" class="max-w-6xl mx-auto px-6 py-20">
+        <h2 class="font-heading text-3xl font-bold text-center mb-4">Cómo funciona</h2>
+        <p class="text-slate-400 text-center max-w-lg mx-auto mb-14">Tres pasos, sin vueltas.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass-card p-6">
+                <div class="w-10 h-10 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center mb-4 font-heading font-bold text-primaryLight">1</div>
+                <h3 class="font-semibold mb-2">Pide tu viaje</h3>
+                <p class="text-sm text-slate-400">Elige tu origen y destino, y te mostramos conductores disponibles cerca de ti.</p>
+            </div>
+            <div class="glass-card p-6">
+                <div class="w-10 h-10 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center mb-4 font-heading font-bold text-primaryLight">2</div>
+                <h3 class="font-semibold mb-2">Sigue tu ruta</h3>
+                <p class="text-sm text-slate-400">Ve la ubicación del conductor en el mapa y comunícate por chat dentro de la app.</p>
+            </div>
+            <div class="glass-card p-6">
+                <div class="w-10 h-10 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center mb-4 font-heading font-bold text-primaryLight">3</div>
+                <h3 class="font-semibold mb-2">Paga y califica</h3>
+                <p class="text-sm text-slate-400">Paga seguro desde la app y califica tu experiencia al terminar el viaje.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pasajeros -->
+    <section id="pasajeros" class="max-w-6xl mx-auto px-6 py-20">
+        <div class="glass-card p-8 md:p-12 grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+            <div>
+                <span class="text-xs font-semibold text-accent uppercase tracking-wide">Para pasajeros</span>
+                <h2 class="font-heading text-3xl font-bold mt-2 mb-4">Viaja con confianza, a un toque de distancia</h2>
+                <ul class="space-y-3 text-sm text-slate-300">
+                    <li class="flex items-start gap-3"><i class="fa-solid fa-check text-success mt-1"></i> Tarifa estimada antes de confirmar el viaje</li>
+                    <li class="flex items-start gap-3"><i class="fa-solid fa-check text-success mt-1"></i> Chat directo con tu conductor</li>
+                    <li class="flex items-start gap-3"><i class="fa-solid fa-check text-success mt-1"></i> Pago dentro de la app, sin manejar efectivo</li>
+                    <li class="flex items-start gap-3"><i class="fa-solid fa-check text-success mt-1"></i> Historial de viajes y calificaciones</li>
+                </ul>
+                <div class="flex flex-wrap gap-3 mt-8">
+                    <span class="store-badge"><i class="fa-brands fa-apple"></i> App Store — próximamente</span>
+                    <span class="store-badge"><i class="fa-brands fa-google-play"></i> Google Play — próximamente</span>
+                </div>
+            </div>
+            <div class="flex justify-center">
+                <div class="w-56 h-96 rounded-[2rem] border border-white/10 bg-slate-900/60 p-3 shadow-2xl">
+                    <div class="w-full h-full rounded-[1.5rem] bg-gradient-to-b from-primary/20 to-accent/10 flex flex-col items-center justify-center gap-3 border border-white/5">
+                        <i class="fa-solid fa-map-location-dot text-4xl text-accent"></i>
+                        <p class="text-xs text-slate-400 px-6 text-center">Tu viaje, siempre visible en el mapa</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Conductores -->
+    <section id="conductores" class="max-w-6xl mx-auto px-6 py-20">
+        <div class="glass-card p-8 md:p-12 grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+            <div class="order-2 md:order-1 flex justify-center">
+                <div class="w-56 h-96 rounded-[2rem] border border-white/10 bg-slate-900/60 p-3 shadow-2xl">
+                    <div class="w-full h-full rounded-[1.5rem] bg-gradient-to-b from-success/20 to-accent/10 flex flex-col items-center justify-center gap-3 border border-white/5">
+                        <i class="fa-solid fa-wallet text-4xl text-success"></i>
+                        <p class="text-xs text-slate-400 px-6 text-center">Tus ganancias, claras desde el primer viaje</p>
+                    </div>
+                </div>
+            </div>
+            <div class="order-1 md:order-2">
+                <span class="text-xs font-semibold text-success uppercase tracking-wide">Para conductores</span>
+                <h2 class="font-heading text-3xl font-bold mt-2 mb-4">Maneja cuando quieras, gana lo que produces</h2>
+                <ul class="space-y-3 text-sm text-slate-300">
+                    <li class="flex items-start gap-3"><i class="fa-solid fa-check text-success mt-1"></i> Horarios flexibles, tú decides cuándo conectarte</li>
+                    <li class="flex items-start gap-3"><i class="fa-solid fa-check text-success mt-1"></i> Balance de ganancias en tiempo real</li>
+                    <li class="flex items-start gap-3"><i class="fa-solid fa-check text-success mt-1"></i> Solicitud de retiros desde la app</li>
+                    <li class="flex items-start gap-3"><i class="fa-solid fa-check text-success mt-1"></i> Notificación de viajes cercanos al instante</li>
+                </ul>
+                <a href="#contacto" class="btn-primary mt-8">
+                    <i class="fa-solid fa-user-plus"></i> Postúlate como conductor
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contacto -->
+    <section id="contacto" class="max-w-4xl mx-auto px-6 py-20 text-center">
+        <h2 class="font-heading text-3xl font-bold mb-4">¿Preguntas o quieres unirte?</h2>
+        <p class="text-slate-400 mb-8 max-w-lg mx-auto">Escríbenos y te contamos cómo empezar a viajar o a manejar con DRI.</p>
+        <a href="mailto:rafaelsegundom@gmail.com?subject=Quiero%20saber%20más%20sobre%20DRI" class="btn-primary">
+            <i class="fa-solid fa-envelope"></i> Escribir a DRI
+        </a>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/10 mt-10">
+        <div class="max-w-6xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                    <i class="fa-solid fa-route text-white text-xs"></i>
+                </div>
+                <span class="font-heading font-semibold text-sm">DRI</span>
+            </div>
+            <p class="text-xs text-slate-500">© 2026 DRI Transporte. Todos los derechos reservados.</p>
+        </div>
     </footer>
 
 </body>
