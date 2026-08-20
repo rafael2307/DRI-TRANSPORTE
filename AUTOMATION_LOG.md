@@ -19,3 +19,6 @@ Este archivo es la memoria entre corridas de la automatizacion (cada corrida es 
 - - Revisado el resto de payments.service.ts: la integracion con Wompi (checkout, verificacion de firma de webhook) ya esta implementada de verdad, no es mock - no hace falta tocarla.
   - - Siguiente candidato recomendado para la proxima corrida: backend/src/ai/ai.service.ts (extraccion de destino/tarifa simulada, sin Gemini real) - OJO: esto necesita credenciales/API key de Gemini que no estan disponibles en este entorno, hay que decidir con el usuario antes de tocarlo.
     - 
+
+- CI real (GitHub Actions "Test Backend") corrio por primera vez sobre este PR y encontro un bug PRE-EXISTENTE no relacionado con estos cambios: backend/src/payments/payments.service.spec.ts fallaba (module.compile() no podia resolver TripRepository, dependencia agregada a PaymentsService que el archivo de test nunca actualizo). Esto confirma otra vez que el PLAN_DE_TRABAJO.md no es confiable. Se arreglo agregando el mock de Trip repository y una prueba extra para el caso de saldo insuficiente. Pendiente confirmar en el proximo check de CI que ahora pasa todo verde.
+- 
