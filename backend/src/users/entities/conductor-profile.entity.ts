@@ -17,60 +17,69 @@ export enum ConductorStatus {
 }
 
 @Entity('conductor_profiles')
-export class ConductorProfile {
+  export class ConductorProfile {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => User, { onDelete: 'CASCADE' })
+@OneToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn()
   user: User;
 
-  // Vehicle Photos
-  @Column({ nullable: true })
+// Vehicle Photos
+@Column({ nullable: true })
   vehicleFrontUrl: string;
 
-  @Column({ nullable: true })
+@Column({ nullable: true })
   vehicleBackUrl: string;
 
-  @Column({ nullable: true })
+@Column({ nullable: true })
   vehicleLeftUrl: string;
 
-  @Column({ nullable: true })
+@Column({ nullable: true })
   vehicleRightUrl: string;
 
-  @Column({ nullable: true })
+@Column({ nullable: true })
   vehicleInteriorUrl: string;
 
-  // Documents
-  @Column({ nullable: true })
+// Documents
+@Column({ nullable: true })
   driverLicenseUrl: string;
 
-  @Column({ nullable: true })
+@Column({ nullable: true })
   idCardUrl: string;
 
-  @Column({ nullable: true })
+@Column({ nullable: true })
   profilePictureUrl: string;
 
-  @Column({
-    type: 'enum',
-    enum: ConductorStatus,
-    default: ConductorStatus.PENDING,
-  })
+@Column({
+  type: 'enum',
+  enum: ConductorStatus,
+  default: ConductorStatus.PENDING,
+})
   status: ConductorStatus;
 
-  @Column({
-    type: 'enum',
-    enum: ServiceType,
-    default: ServiceType.URBAN,
-  })
+@Column({
+  type: 'enum',
+  enum: ServiceType,
+  default: ServiceType.URBAN,
+})
   serviceType: ServiceType;
 
-  @Column({ default: false })
+@Column({ default: false })
   isApproved: boolean;
 
-  @CreateDateColumn()
+// Opt-in explícito para los chequeos de bienestar/fatiga del asistente de
+// IA durante los viajes. Falso por defecto: sin este consentimiento el
+// conductor nunca recibe chequeos. Ver ASISTENTE_IA_PLUS.md.
+@Column({ default: false })
+  wellnessCheckInsEnabled: boolean;
+
+@Column({ type: 'timestamp', nullable: true })
+  wellnessConsentAt: Date | null;
+
+@CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn()
+@UpdateDateColumn()
   updatedAt: Date;
 }
