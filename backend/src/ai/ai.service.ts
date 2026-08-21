@@ -128,4 +128,68 @@ async translateMessage(text: string) {
   }
   return `[AI Translated] ${text}`;
 }
+
+// Genera el mensaje corto y calido que el asistente le manda al conductor
+// para un chequeo de bienestar/fatiga durante un viaje. El "reason" (por
+// ahora solo SCHEDULED) queda como parametro para cuando se agreguen mas
+// disparadores basados en patron de manejo.
+async getWellnessCheckInPrompt(reason: string): Promise<string> {
+  if (this.model) {
+    try {
+      const prompt = `Eres el asistente de bienestar para conductores de una app de transporte de pasajeros en Colombia. Genera un mensaje corto, calido y nada alarmante para chequear como esta el conductor durante un viaje activo (por ejemplo, preguntar si necesita una pausa). No suenes como un formulario ni uses la palabra "${reason}". Responde solo con el mensaje, sin comillas ni explicaciones.`;
+      const result = await this.model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (error) {
+      this.logger.error(
+        `Fallo al generar el chequeo de bienestar con Gemini, se usa el mensaje simulado como respaldo: ${error}`,
+        );
+    }
+  }
+  return this.getWellnessCheckInPromptSimulated();
+}
+
+private getWellnessCheckInPromptSimulated(): string {
+  const options = [
+    'Hola, como vas con el viaje? Si necesitas parar un momento a descansar, dimelo y te ayudo a coordinarlo.',
+    'Solo pasaba a saludar: como te sientes? Si estas cansado, una pausa corta no le hace mal a nadie.',
+    'Chequeo rapido: todo bien por alla? Si necesitas algo, aqui estoy.',
+    ];
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+// Evalua (sin diagnosticar nada medico) si la respuesta del conductor a un
+// chequeo de bienestar sugiere que podria necesitar una pausa o ayuda. El
+// resultado solo se usa para dejarlo marcado en el registro auditable, no
+// dispara ninguna accion automatica.
+async assessWellnessResponse(response: string): Promise<{ flagged: boolean }> {
+  if (this.model) {
+    try {
+      const prompt = `Un conductor de una app de transporte respondio esto a un chequeo de bienestar durante un viaje: "${response}". Responde SOLO con la palabra SI si el texto sugiere que el conductor esta cansado, no se siente bien, o necesita ayuda o una pausa. Responde SOLO con la palabra NO en cualquier otro caso.`;
+      const result = await this.model.generateContent(prompt);
+      const raw = result.response.text().trim().toUpperCase();
+      return { flagged: raw.startsWith('SI') };
+    } catch (error) {
+      this.logger.error(
+        `Fallo al evaluar la respuesta de bienestar con Gemini, se usa el modo simulado como respaldo: ${error}`,
+        );
+    }
+  }
+  return this.assessWellnessResponseSimulated(response);
+}
+
+private assessWellnessResponseSimulated(response: string): { flagged: boolean } {
+  const textLower = response.toLowerCase();
+  const concerningWords = [
+    'cansad',
+    'mal',
+    'ayuda',
+    'no puedo',
+    'mareo',
+    'dormid',
+    'agotad',
+    'sueno',
+    ];
+  const flagged = concerningWords.some((word) => textLower.includes(word));
+  return { flagged };
+}
 }
