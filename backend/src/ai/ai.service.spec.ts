@@ -68,6 +68,23 @@ describe('AiService', () => {
                     await service.extractTripDetails('cualquier texto');
                     expect(mockGenerateContent).not.toHaveBeenCalled();
                   });
+
+                  it('genera un mensaje de chequeo de bienestar simulado', async () => {
+                    const message = await service.getWellnessCheckInPrompt('SCHEDULED');
+                    expect(typeof message).toBe('string');
+                    expect(message.length).toBeGreaterThan(0);
+                    expect(mockGenerateContent).not.toHaveBeenCalled();
+                  });
+
+                  it('marca como preocupante una respuesta que menciona cansancio', async () => {
+                    const result = await service.assessWellnessResponse('estoy muy cansado, necesito una pausa');
+                    expect(result.flagged).toBe(true);
+                  });
+
+                  it('no marca como preocupante una respuesta normal', async () => {
+                    const result = await service.assessWellnessResponse('todo bien, gracias');
+                    expect(result.flagged).toBe(false);
+                  });
          });
 
          describe('con GEMINI_API_KEY (modo real)', () => {
@@ -78,11 +95,11 @@ describe('AiService', () => {
                   });
 
                   it('usa la respuesta de Gemini para extraer el destino', async () => {
-             mockGenerateContent.mockResolvedValue({
-               response: {
-                 text: () => '{"serviceType": "URBAN", "destination": "Chapinero", "isAirport": false}',
-               },
-             });
+                    mockGenerateContent.mockResolvedValue({
+                      response: {
+                        text: () => '{"serviceType": "URBAN", "destination": "Chapinero", "isAirport": false}',
+                      },
+                    });
 
                      const result = await service.extractTripDetails('Voy a Chapinero');
 
@@ -128,6 +145,36 @@ describe('AiService', () => {
                      const result = await service.translateMessage('Hola conductor');
 
                      expect(result).toBe('Hello driver');
+                  });
+
+                  it('usa Gemini para generar el chequeo de bienestar', async () => {
+                    mockGenerateContent.mockResolvedValue({
+                      response: { text: () => 'Como vas? Todo bien por alla?' },
+                    });
+
+                     const message = await service.getWellnessCheckInPrompt('SCHEDULED');
+
+                     expect(mockGenerateContent).toHaveBeenCalled();
+                    expect(message).toBe('Como vas? Todo bien por alla?');
+                  });
+
+                  it('usa Gemini para evaluar si una respuesta es preocupante', async () => {
+                    mockGenerateContent.mockResolvedValue({
+                      response: { text: () => 'SI' },
+                    });
+
+                     const result = await service.assessWellnessResponse('no doy mas, estoy fatal');
+
+                     expect(mockGenerateContent).toHaveBeenCalled();
+                    expect(result.flagged).toBe(true);
+                  });
+
+                  it('cae al modo simulado si Gemini falla al evaluar la respuesta', async () => {
+                    mockGenerateContent.mockRejectedValue(new Error('network error'));
+
+                     const result = await service.assessWellnessResponse('todo excelente');
+
+                     expect(result.flagged).toBe(false);
                   });
          });
 });
