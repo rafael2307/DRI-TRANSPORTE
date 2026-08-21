@@ -13,40 +13,51 @@ import { Role } from './role.entity';
 // Role definitions moved to Role entity
 
 @Entity('users')
-export class User {
+  export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true, nullable: true })
+@Column({ unique: true, nullable: true })
   email: string;
 
-  @Column({ nullable: true })
+@Column({ nullable: true })
   password?: string;
 
-  @Column()
+@Column()
   name: string;
 
-  @Column({ unique: true })
+@Column({ unique: true })
   phone: string;
 
-  @ManyToOne(() => Role, (role) => role.users)
+@ManyToOne(() => Role, (role) => role.users)
   role: Role;
 
-  @Column({ type: 'decimal', precision: 3, scale: 2, default: 5.0 })
+@Column({ type: 'decimal', precision: 3, scale: 2, default: 5.0 })
   rating: number;
 
-  @OneToMany(() => SocialAccount, (social) => social.user)
+@OneToMany(() => SocialAccount, (social) => social.user)
   socialAccounts: SocialAccount[];
 
-  @Column({ nullable: true })
+@Column({ nullable: true })
   fcmToken: string;
 
-  @Column({ nullable: true })
+@Column({ nullable: true })
   hashedRefreshToken: string;
 
-  @CreateDateColumn()
+// Opt-in explícito del pasajero para el asistente de IA conversacional
+// durante el viaje (chat + resumen post-viaje). Falso por defecto: sin
+// este consentimiento el pasajero nunca recibe mensajes del asistente.
+// No existe un PassengerProfile separado, así que esto vive en User
+// directamente, igual que wellnessCheckInsEnabled vive en ConductorProfile.
+@Column({ default: false })
+  assistantChatEnabled: boolean;
+
+@Column({ type: 'timestamp', nullable: true })
+  assistantChatEnabledAt: Date | null;
+
+@CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn()
+@UpdateDateColumn()
   updatedAt: Date;
 }
