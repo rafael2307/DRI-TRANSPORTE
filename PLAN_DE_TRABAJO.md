@@ -36,10 +36,17 @@ Siguiendo la **Regla #4 (Divide y Vencerás)**, este documento desglosa el proye
 *   [x] **Tarea 4.2:** Panel Admin: Visualizar viajes en curso y métricas.
 *   [x] **Tarea 4.3:** Panel Admin: Gestión de usuarios, conductores y retiros.
 
-## Fase 5: Experiencia Multimodal & IA (Finalizada)
-*   [x] **Tarea 5.1:** Integrar servicio STT (Speech-to-Text) y TTS para comandos de voz.
-*   [x] **Tarea 5.2:** Implementar interfaz de Chat Flotante en todas las apps.
-*   [x] **Tarea 5.3:** Backend: Integrar LLM (Gemini) para extracción de destinos y soporte.
+## Fase 5: Experiencia Multimodal & IA (Finalizada, con una corrección)
+*   [ ] **Tarea 5.1:** Integrar servicio STT (Speech-to-Text) y TTS para comandos de voz. **Corrección (2026-08-21): esto NO está hecho.** El botón de micrófono en `app-pasajero/MapScreen.js` (`handleVoiceCommand`) usa una transcripción simulada hardcodeada, no un STT real. Ver el punto 6 de `ASISTENTE_IA_PLUS.md` para el detalle de por qué sigue fuera de alcance y qué se necesita para hacerlo de verdad.
+*   [x] **Tarea 5.2:** Implementar interfaz de Chat Flotante en todas las apps. (Chat de texto por socket con el conductor/pasajero, y ahora también con el asistente de IA - ver Fase 8.)
+*   [x] **Tarea 5.3:** Backend: Integrar LLM (Gemini) para extracción de destinos y soporte. (Real si hay `GEMINI_API_KEY` configurada; con modo simulado como respaldo si no.)
+
+## Fase 8: "El Plus" - Bienestar del Conductor y Asistente del Pasajero (2026-08-20/21)
+*   [x] **Tarea 8.1:** Backend + UI del conductor: chequeos de bienestar/fatiga con opt-in explícito, registro auditable, sin acción punitiva automática (`WellnessModule`, modal en `app-conductor/MapScreen.js`).
+*   [x] **Tarea 8.2:** Backend + UI del pasajero: alerta SOS con confirmación de dos pasos, registro auditable con ubicación, notificación push al conductor (`PassengerAssistantModule`, botón SOS en `app-pasajero/MapScreen.js`).
+*   [x] **Tarea 8.3:** Backend + UI del pasajero: asistente conversacional de texto con opt-in explícito y resumen de viaje post-servicio en vez de solo estrellas.
+*   [ ] **Tarea 8.4:** Voz real (STT/TTS) para todo lo anterior. Explícitamente fuera de alcance por ahora - ver `ASISTENTE_IA_PLUS.md` punto 6.
+*   [ ] **Tarea 8.5:** Chequeos de bienestar disparados por telemetría de manejo (frenados bruscos, patrón errático), no solo por tiempo. Fuera de alcance: la app aún no manda esa telemetría.
 
 ## Fase 6: Calificaciones, Reseñas e Historial (Finalizada)
 *   [x] **Tarea 6.1:** Backend: Crear entidad `Review` y vincularla a `Trip`.
@@ -52,9 +59,6 @@ Siguiendo la **Regla #4 (Divide y Vencerás)**, este documento desglosa el proye
 *   [x] **Tarea 7.2:** Implementar rotación de Refresh Tokens para mayor seguridad.
 *   [x] **Tarea 7.3:** Configurar entorno de producción (CI/CD con GitHub Actions, Docker Compose para Prod).
 *   [x] **Tarea 7.4:** Auditoría de Performance: Índices de base de datos y optimización de sockets.
-
----
-**Nota:** Cada tarea debe completarse con sus respectivos Tests Unitarios (**Regla #6**).
 
 ---
 **Nota:** Cada tarea debe completarse con sus respectivos Tests Unitarios (**Regla #6**).
