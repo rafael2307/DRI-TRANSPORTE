@@ -21,6 +21,7 @@ import { AiModule } from './ai/ai.module';
 import { ReviewsModule } from './trips/reviews.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { WellnessModule } from './wellness/wellness.module';
+import { PassengerAssistantModule } from './passenger-assistant/passenger-assistant.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { WellnessModule } from './wellness/wellness.module';
     PaymentsModule,
     TripsModule,
     WellnessModule,
+    PassengerAssistantModule,
     RedisModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {

@@ -85,6 +85,25 @@ describe('AiService', () => {
                     const result = await service.assessWellnessResponse('todo bien, gracias');
                     expect(result.flagged).toBe(false);
                   });
+
+                  it('responde en modo simulado al chat del pasajero', async () => {
+                    const reply = await service.chatWithPassenger('hola, cuanto falta?');
+                    expect(typeof reply).toBe('string');
+                    expect(reply.length).toBeGreaterThan(0);
+                    expect(mockGenerateContent).not.toHaveBeenCalled();
+                  });
+
+                  it('genera un resumen de viaje simulado', async () => {
+                    const summary = await service.generateTripSummary({
+                      pickupLocationName: 'Casa',
+                      destinationName: 'Oficina',
+                      fare: 8500,
+                      serviceType: 'URBAN',
+                    });
+                    expect(summary).toContain('Casa');
+                    expect(summary).toContain('Oficina');
+                    expect(mockGenerateContent).not.toHaveBeenCalled();
+                  });
          });
 
          describe('con GEMINI_API_KEY (modo real)', () => {
@@ -175,6 +194,55 @@ describe('AiService', () => {
                      const result = await service.assessWellnessResponse('todo excelente');
 
                      expect(result.flagged).toBe(false);
+                  });
+
+                  it('usa Gemini para el chat con el pasajero', async () => {
+                    mockGenerateContent.mockResolvedValue({
+                      response: { text: () => 'Ya casi llegamos, tranquilo!' },
+                    });
+
+                     const reply = await service.chatWithPassenger('falta mucho?');
+
+                     expect(mockGenerateContent).toHaveBeenCalled();
+                    expect(reply).toBe('Ya casi llegamos, tranquilo!');
+                  });
+
+                  it('cae al modo simulado si Gemini falla en el chat con el pasajero', async () => {
+                    mockGenerateContent.mockRejectedValue(new Error('network error'));
+
+                     const reply = await service.chatWithPassenger('hola');
+
+                     expect(typeof reply).toBe('string');
+                    expect(reply.length).toBeGreaterThan(0);
+                  });
+
+                  it('usa Gemini para generar el resumen del viaje', async () => {
+                    mockGenerateContent.mockResolvedValue({
+                      response: { text: () => 'Que viaje tan tranquilo, gracias por confiar en nosotros!' },
+                    });
+
+                     const summary = await service.generateTripSummary({
+                       pickupLocationName: 'Casa',
+                       destinationName: 'Oficina',
+                       fare: 8500,
+                       serviceType: 'URBAN',
+                     });
+
+                     expect(mockGenerateContent).toHaveBeenCalled();
+                    expect(summary).toBe('Que viaje tan tranquilo, gracias por confiar en nosotros!');
+                  });
+
+                  it('cae al modo simulado si Gemini falla al generar el resumen del viaje', async () => {
+                    mockGenerateContent.mockRejectedValue(new Error('network error'));
+
+                     const summary = await service.generateTripSummary({
+                       pickupLocationName: 'Casa',
+                       destinationName: 'Oficina',
+                       fare: 8500,
+                       serviceType: 'URBAN',
+                     });
+
+                     expect(summary).toContain('Casa');
                   });
          });
 });

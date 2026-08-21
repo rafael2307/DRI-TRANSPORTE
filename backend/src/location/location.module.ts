@@ -7,12 +7,14 @@ import { TripsModule } from '../trips/trips.module';
 import { AiModule } from '../ai/ai.module';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { WellnessModule } from '../wellness/wellness.module';
+import { PassengerAssistantModule } from '../passenger-assistant/passenger-assistant.module';
 
 @Module({
   imports: [
     forwardRef(() => TripsModule),
     AiModule,
     WellnessModule,
+    PassengerAssistantModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
