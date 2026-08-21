@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import { AiService } from '../ai/ai.service';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { WellnessService } from '../wellness/wellness.service';
+import { PassengerAssistantService } from '../passenger-assistant/passenger-assistant.service';
 
 interface AuthedSocket extends Socket {
   data: { user?: { sub: string; username: string; role: string } };
@@ -43,6 +44,7 @@ constructor(
   private readonly jwtService: JwtService,
   private readonly configService: ConfigService,
   private readonly wellnessService: WellnessService,
+  private readonly passengerAssistantService: PassengerAssistantService,
   ) {}
 
 // Los guards de Nest solo interceptan @SubscribeMessage, no los hooks de
@@ -380,5 +382,65 @@ private getUser(client: AuthedSocket) {
     this.logger.log(
       `Message from ${senderId} in trip ${data.tripId}: ${data.message} (AI Trans: ${translatedContent})`,
       );
+  }
+
+@UseGuards(WsJwtGuard)
+  @SubscribeMessage('sosAlert')
+  async handleSosAlert(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() data: { tripId: string; lat: number; lng: number },
+    ) {
+    const user = this.getUser(client);
+    const trip = await this.assertTripParty(data.tripId, user.sub, 'passenger');
+
+  const alert = await this.passengerAssistantService.triggerSos({
+    tripId: data.tripId,
+    passengerId: user.sub,
+    driverFcmToken: trip.driver?.fcmToken,
+    lat: data.lat,
+    lng: data.lng,
+  });
+
+  // Se avisa a todos en la sala del viaje (conductor y pasajero). El
+  // conductor además recibe una notificación push si tiene token FCM
+  // registrado (ver PassengerAssistantService.triggerSos) — no hay
+  // integración con servicios de emergencia externos, ver nota de alcance
+  // en el PR.
+  this.server.to(`trip_${data.tripId}`).emit('sosAlertTriggered', {
+    tripId: data.tripId,
+    alertId: alert.id,
+    lat: data.lat,
+    lng: data.lng,
+  });
+
+  this.logger.warn(
+    `SOS del pasajero ${user.sub} en viaje ${data.tripId} propagado a la sala del viaje.`,
+    );
+  }
+
+@UseGuards(WsJwtGuard)
+  @SubscribeMessage('assistantChatMessage')
+  async handleAssistantChatMessage(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() data: { message: string },
+    ) {
+    const user = this.getUser(client);
+    if (user.role !== 'passenger') return;
+
+  // El chat solo responde si el pasajero activó el asistente en sus
+  // preferencias (ver PassengerAssistantService.chat) — si no, el service
+  // lanza y acá se lo devolvemos al cliente como un evento de error, no
+  // como una excepción de socket sin manejar.
+  try {
+    const { reply } = await this.passengerAssistantService.chat(
+      user.sub,
+      data.message,
+      );
+    client.emit('assistantChatReply', { reply });
+  } catch (error) {
+    client.emit('assistantChatError', {
+      message: error?.message || 'No se pudo procesar el mensaje',
+    });
+  }
   }
 }
