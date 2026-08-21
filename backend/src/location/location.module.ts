@@ -6,11 +6,13 @@ import { LocationGateway } from './location.gateway';
 import { TripsModule } from '../trips/trips.module';
 import { AiModule } from '../ai/ai.module';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { WellnessModule } from '../wellness/wellness.module';
 
 @Module({
   imports: [
     forwardRef(() => TripsModule),
     AiModule,
+    WellnessModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -21,8 +23,8 @@ import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
       }),
       inject: [ConfigService],
     }),
-  ],
+    ],
   providers: [LocationService, LocationGateway, WsJwtGuard],
   exports: [LocationService],
 })
-export class LocationModule {}
+  export class LocationModule {}
