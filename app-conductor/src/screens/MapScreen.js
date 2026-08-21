@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import { theme } from '../theme/theme';
 import { GlassCard } from '../components/GlassCard';
 import { GradientButton } from '../components/GradientButton';
-import { Power, Settings, Navigation, HelpCircle, MessageCircle, MessageSquare, X } from 'lucide-react-native';
+import { Power, Settings, Navigation, HelpCircle, MessageCircle, MessageSquare, X, Activity } from 'lucide-react-native';
 import { socketService } from '../services/socket.service';
 import { useAuth } from '../context/AuthContext';
 
@@ -18,322 +18,389 @@ export default function MapScreen({ navigation, route }) {
     const [isOnline, setIsOnline] = useState(false);
     const [pendingTrip, setPendingTrip] = useState(null);
     const [activeTrip, setActiveTrip] = useState(null); // { id, passengerSocketId, status }
-    const [isChatVisible, setIsChatVisible] = useState(false);
+const [isChatVisible, setIsChatVisible] = useState(false);
     const [isSupportVisible, setIsSupportVisible] = useState(false);
     const [supportQuery, setSupportQuery] = useState('');
     const [supportResponse, setSupportResponse] = useState('');
     const [isSupportLoading, setIsSupportLoading] = useState(false);
     const [chatMessages, setChatMessages] = useState([]);
     const [currentMessage, setCurrentMessage] = useState('');
+    const [wellnessCheckIn, setWellnessCheckIn] = useState(null); // { checkInId, message }
+const [wellnessResponseText, setWellnessResponseText] = useState('');
+    const [isWellnessSending, setIsWellnessSending] = useState(false);
 
-    useEffect(() => {
-        if (user && token && !socketService.socket) {
-            socketService.connect(token);
-        }
+useEffect(() => {
+    if (user && token && !socketService.socket) {
+        socketService.connect(token);
+    }
 
-        socketService.onNewTripRequest((data) => {
-            setPendingTrip(data);
+          socketService.onNewTripRequest((data) => {
+              setPendingTrip(data);
+          });
+
+          socketService.socket?.on('tripStarted', () => {
+              setActiveTrip(prev => ({ ...prev, status: 'IN_PROGRESS' }));
+          });
+
+          socketService.socket?.on('tripCompleted', () => {
+              setActiveTrip(null);
+              alert('¡Viaje completado con éxito!');
+          });
+
+          socketService.socket?.on('tripCancelled', () => {
+              setActiveTrip(null);
+              setPendingTrip(null);
+              alert('El viaje ha sido cancelado.');
+          });
+
+          socketService.onNewMessage((msg) => {
+              setChatMessages(prev => [...prev, msg]);
+              if (!isChatVisible) {
+                  alert(`Mensaje del Pasajero: ${msg.message}`);
+              }
+          });
+
+          // Chequeo de bienestar: solo llega si el conductor dio consentimiento
+          // (ver ASISTENTE_IA_PLUS.md). Nunca se dispara sin ese opt-in.
+          socketService.onWellnessCheckIn((data) => {
+              setWellnessCheckIn(data);
+          });
+
+          socketService.onWellnessCheckInAck(() => {
+              setWellnessCheckIn(null);
+              setWellnessResponseText('');
+              setIsWellnessSending(false);
+          });
+
+          const watchLocation = async () => {
+              let { status } = await Location.requestForegroundPermissionsAsync();
+              if (status !== 'granted') return;
+
+              return await Location.watchPositionAsync(
+                  {
+                      accuracy: Location.Accuracy.High,
+                      distanceInterval: 10, // Update every 10 meters
+                  },
+                  (loc) => {
+                      setLocation(loc.coords);
+                      if (isOnline && user) {
+                          socketService.updateLocation(loc.coords.latitude, loc.coords.longitude, serviceType);
+                      }
+                  }
+                  );
+          };
+
+          let subscription;
+    watchLocation().then(sub => subscription = sub);
+
+          return () => {
+              if (subscription) subscription.remove();
+              socketService.disconnect();
+          };
+}, [isOnline]);
+
+          const handleAcceptTrip = () => {
+              socketService.acceptTrip({
+                  tripId: pendingTrip.tripId,
+                  passengerSocketId: pendingTrip.passengerSocketId
+              });
+              setActiveTrip({
+                  id: pendingTrip.tripId,
+                  passengerSocketId: pendingTrip.passengerSocketId,
+                  status: 'ACCEPTED',
+                  destination: pendingTrip.destination,
+                  fare: pendingTrip.fare
+              });
+              setPendingTrip(null);
+          };
+
+const handleArrived = () => {
+    socketService.driverArrived(activeTrip.id);
+    setActiveTrip(prev => ({ ...prev, status: 'ARRIVED' }));
+};
+
+const handleStartTrip = () => {
+    socketService.startTrip(activeTrip.id);
+    setActiveTrip(prev => ({ ...prev, status: 'IN_PROGRESS' }));
+};
+
+const handleCompleteTrip = () => {
+    socketService.completeTrip(activeTrip.id);
+};
+
+const handleAiSupportQuery = async () => {
+    if (!supportQuery.trim()) return;
+    setIsSupportLoading(true);
+    setSupportResponse('');
+    try {
+        const response = await fetch('http://localhost:3000/ai/query-support', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: supportQuery })
         });
+        const data = await response.json();
+        setSupportResponse(data.answer);
+    } catch (error) {
+        setSupportResponse('Error al contactar soporte IA.');
+    } finally {
+        setIsSupportLoading(false);
+    }
+};
 
-        socketService.socket?.on('tripStarted', () => {
-            setActiveTrip(prev => ({ ...prev, status: 'IN_PROGRESS' }));
-        });
+const handleSendMessage = () => {
+    if (!currentMessage.trim()) return;
+    socketService.sendMessage(activeTrip.id, currentMessage);
+    setCurrentMessage('');
+};
 
-        socketService.socket?.on('tripCompleted', () => {
-            setActiveTrip(null);
-            alert('¡Viaje completado con éxito!');
-        });
+const handleSendWellnessResponse = () => {
+    if (!wellnessResponseText.trim() || !wellnessCheckIn) return;
+    setIsWellnessSending(true);
+    socketService.respondWellnessCheckIn(wellnessCheckIn.checkInId, wellnessResponseText);
+};
 
-        socketService.socket?.on('tripCancelled', () => {
-            setActiveTrip(null);
-            setPendingTrip(null);
-            alert('El viaje ha sido cancelado.');
-        });
+const handleDismissWellnessCheckIn = () => {
+    // El conductor puede cerrar sin responder — esto nunca es obligatorio
+    // ni se usa para penalizarlo, ver ASISTENTE_IA_PLUS.md.
+    setWellnessCheckIn(null);
+    setWellnessResponseText('');
+};
 
-        socketService.onNewMessage((msg) => {
-            setChatMessages(prev => [...prev, msg]);
-            if (!isChatVisible) {
-                alert(`Mensaje del Pasajero: ${msg.message}`);
-            }
-        });
+return (
+    <View style={styles.container}>
+<MapView
+    provider={PROVIDER_GOOGLE}
+    style={styles.map}
+customMapStyle={mapStyle}
+initialRegion={{
+    latitude: location?.latitude || 4.6097,
+    longitude: location?.longitude || -74.0817,
+    latitudeDelta: 0.01,
+    longitudeDelta: 0.01,
+}}
+showsUserLocation
+/>
 
-        const watchLocation = async () => {
-            let { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') return;
+    <SafeAreaView style={styles.overlay}>
+{pendingTrip ? (
+    <View style={styles.tripAlertContainer}>
+    <GlassCard style={styles.tripAlertCard}>
+    <Text style={styles.alertTitle}>¡Nuevo Viaje!</Text>
+    <Text style={styles.alertDetail}>{pendingTrip.destination?.name}</Text>
+    <Text style={styles.alertFare}>${pendingTrip.fare?.toLocaleString()}</Text>
+    <View style={styles.alertActions}>
+    <GradientButton
+    title="Rechazar"
+onPress={() => setPendingTrip(null)}
+colors={[theme.colors.error, '#F87171']}
+style={styles.alertButton}
+/>
+<GradientButton
+title="Aceptar"
+onPress={handleAcceptTrip}
+colors={[theme.colors.success, '#34D399']}
+style={styles.alertButton}
+/>
+    </View>
+    </GlassCard>
+    </View>
+) : activeTrip ? (
+    <View style={styles.activeTripContainer}>
+<GlassCard style={styles.activeTripCard}>
+    <View style={styles.activeTripHeader}>
+    <Navigation color={theme.colors.primary[0]} size={24} />
+    <Text style={styles.activeTripLabel}>
+{activeTrip.status === 'ACCEPTED' ? 'Recogiendo Pasajero' : 'Viaje en Curso'}
+</Text>
+    </View>
+<Text style={styles.activeTripDest}>{activeTrip.destination.name}</Text>
+<Text style={styles.activeTripFare}>${activeTrip.fare.toLocaleString()}</Text>
 
-            return await Location.watchPositionAsync(
-                {
-                    accuracy: Location.Accuracy.High,
-                    distanceInterval: 10, // Update every 10 meters
-                },
-                (loc) => {
-                    setLocation(loc.coords);
-                    if (isOnline && user) {
-                        socketService.updateLocation(loc.coords.latitude, loc.coords.longitude, serviceType);
-                    }
-                }
-            );
-        };
+<GradientButton
+title={
+    activeTrip.status === 'ACCEPTED' ? "Ya llegué" :
+    activeTrip.status === 'ARRIVED' ? "Iniciar Viaje" :
+    "Finalizar Viaje"
+}
+onPress={
+    activeTrip.status === 'ACCEPTED' ? handleArrived :
+    activeTrip.status === 'ARRIVED' ? handleStartTrip :
+    handleCompleteTrip
+}
+colors={
+    activeTrip.status === 'ACCEPTED' ? [theme.colors.primary[0], '#6366F1'] :
+    activeTrip.status === 'ARRIVED' ? [theme.colors.success, '#34D399'] :
+    [theme.colors.warning || '#F59E0B', '#FBBF24']
+}
+style={styles.actionButton}
+/>
+    </GlassCard>
+    </View>
+) : (
+    <>
+    <View style={styles.header}>
+<GlassCard style={styles.statusCard}>
+<View style={[styles.statusIndicator, { backgroundColor: isOnline ? theme.colors.success : theme.colors.error }]} />
+    <Text style={styles.statusText}>{isOnline ? 'En línea' : 'Desconectado'}</Text>
+    </GlassCard>
+<TouchableOpacity onPress={() => navigation.navigate('Withdrawal')}>
+<GlassCard style={styles.iconButton}>
+<Settings color={theme.colors.text.primary} size={24} />
+    </GlassCard>
+    </TouchableOpacity>
+    </View>
 
-        let subscription;
-        watchLocation().then(sub => subscription = sub);
+<View style={styles.footer}>
+<GradientButton
+title={isOnline ? "Desconectarse" : "Conectarse"}
+onPress={() => setIsOnline(!isOnline)}
+colors={isOnline ? [theme.colors.error, '#F87171'] : [theme.colors.success, '#34D399']}
+/>
+    </View>
+    </>
+)}
 
-        return () => {
-            if (subscription) subscription.remove();
-            socketService.disconnect();
-        };
-    }, [isOnline]);
+{/* Chat Bubble Component */}
+{activeTrip && (
+    <TouchableOpacity
+ style={styles.chatBubble}
+onPress={() => setIsChatVisible(true)}
+>
+    <View style={styles.chatIconBadge}>
+<Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>!</Text>
+    </View>
+<MessageCircle color="white" size={24} />
+    <Text style={{ color: 'white', fontWeight: 'bold', marginLeft: 8 }}>Chat</Text>
+    </TouchableOpacity>
+)}
 
-    const handleAcceptTrip = () => {
-        socketService.acceptTrip({
-            tripId: pendingTrip.tripId,
-            passengerSocketId: pendingTrip.passengerSocketId
-        });
-        setActiveTrip({
-            id: pendingTrip.tripId,
-            passengerSocketId: pendingTrip.passengerSocketId,
-            status: 'ACCEPTED',
-            destination: pendingTrip.destination,
-            fare: pendingTrip.fare
-        });
-        setPendingTrip(null);
-    };
+{/* Chat Modal Component */}
+{isChatVisible && (
+    <View style={styles.chatModal}>
+<GlassCard style={styles.chatContent}>
+<View style={styles.chatHeader}>
+<Text style={styles.chatTitle}>Chat con el Pasajero</Text>
+ <TouchableOpacity onPress={() => setIsChatVisible(false)}>
+<X color={theme.colors.error} size={24} />
+    </TouchableOpacity>
+    </View>
+<ScrollView style={styles.messagesList}>
+{chatMessages.map((m, idx) => (
+    <View key={idx} style={[
+        styles.messageBubble,
+        m.senderId === user.id ? styles.myMessage : styles.otherMessage
+        ]}>
+    <Text style={styles.messageText}>{m.message}</Text>
+    </View>
+                  ))}
+</ScrollView>
+<View style={styles.chatInputContainer}>
+<TextInput
+style={styles.chatInput}
+placeholder="Escribe..."
+placeholderTextColor="#94A3B8"
+value={currentMessage}
+onChangeText={setCurrentMessage}
+/>
+    <GradientButton
+title="Enviar"
+onPress={handleSendMessage}
+style={{ width: 80 }}
+/>
+    </View>
+    </GlassCard>
+    </View>
+)}
 
-    const handleArrived = () => {
-        socketService.driverArrived(activeTrip.id);
-        setActiveTrip(prev => ({ ...prev, status: 'ARRIVED' }));
-    };
+{/* AI Support Modal */}
+{isSupportVisible && (
+    <View style={styles.chatModal}>
+<GlassCard style={styles.chatContent}>
+<View style={styles.chatHeader}>
+<Text style={styles.chatTitle}>Asistente IA para Conductores</Text>
+ <TouchableOpacity onPress={() => setIsSupportVisible(false)}>
+<X color={theme.colors.error} size={24} />
+    </TouchableOpacity>
+    </View>
+<View style={{ padding: 20 }}>
+<View style={styles.supportInputContainer}>
+<TextInput
+style={styles.chatInput}
+placeholder="Haz tu pregunta aquí..."
+placeholderTextColor="#94A3B8"
+value={supportQuery}
+onChangeText={setSupportQuery}
+/>
+    <GradientButton
+title="Soporte"
+onPress={handleAiSupportQuery}
+style={{ width: 100 }}
+disabled={isSupportLoading || !supportQuery.trim()}
+/>
+    </View>
+{isSupportLoading && <Text style={{ marginTop: 10 }}>Pensando...</Text>}
+{supportResponse ? (
+    <View style={styles.supportResponseBox}>
+<MessageSquare size={16} color={theme.colors.primary[0]} />
+<Text style={styles.supportResponseText}>{supportResponse}</Text>
+    </View>
+) : null}
+    </View>
+    </GlassCard>
+    </View>
+)}
 
-    const handleStartTrip = () => {
-        socketService.startTrip(activeTrip.id);
-        setActiveTrip(prev => ({ ...prev, status: 'IN_PROGRESS' }));
-    };
-
-    const handleCompleteTrip = () => {
-        socketService.completeTrip(activeTrip.id);
-    };
-
-    const handleAiSupportQuery = async () => {
-        if (!supportQuery.trim()) return;
-        setIsSupportLoading(true);
-        setSupportResponse('');
-        try {
-            const response = await fetch('http://localhost:3000/ai/query-support', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: supportQuery })
-            });
-            const data = await response.json();
-            setSupportResponse(data.answer);
-        } catch (error) {
-            setSupportResponse('Error al contactar soporte IA.');
-        } finally {
-            setIsSupportLoading(false);
-        }
-    };
-
-    const handleSendMessage = () => {
-        if (!currentMessage.trim()) return;
-        socketService.sendMessage(activeTrip.id, currentMessage);
-        setCurrentMessage('');
-    };
-
-    return (
-        <View style={styles.container}>
-            <MapView
-                provider={PROVIDER_GOOGLE}
-                style={styles.map}
-                customMapStyle={mapStyle}
-                initialRegion={{
-                    latitude: location?.latitude || 4.6097,
-                    longitude: location?.longitude || -74.0817,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                }}
-                showsUserLocation
-            />
-
-            <SafeAreaView style={styles.overlay}>
-                {pendingTrip ? (
-                    <View style={styles.tripAlertContainer}>
-                        <GlassCard style={styles.tripAlertCard}>
-                            <Text style={styles.alertTitle}>¡Nuevo Viaje!</Text>
-                            <Text style={styles.alertDetail}>{pendingTrip.destination?.name}</Text>
-                            <Text style={styles.alertFare}>${pendingTrip.fare?.toLocaleString()}</Text>
-                            <View style={styles.alertActions}>
-                                <GradientButton
-                                    title="Rechazar"
-                                    onPress={() => setPendingTrip(null)}
-                                    colors={[theme.colors.error, '#F87171']}
-                                    style={styles.alertButton}
-                                />
-                                <GradientButton
-                                    title="Aceptar"
-                                    onPress={handleAcceptTrip}
-                                    colors={[theme.colors.success, '#34D399']}
-                                    style={styles.alertButton}
-                                />
-                            </View>
-                        </GlassCard>
-                    </View>
-                ) : activeTrip ? (
-                    <View style={styles.activeTripContainer}>
-                        <GlassCard style={styles.activeTripCard}>
-                            <View style={styles.activeTripHeader}>
-                                <Navigation color={theme.colors.primary[0]} size={24} />
-                                <Text style={styles.activeTripLabel}>
-                                    {activeTrip.status === 'ACCEPTED' ? 'Recogiendo Pasajero' : 'Viaje en Curso'}
-                                </Text>
-                            </View>
-                            <Text style={styles.activeTripDest}>{activeTrip.destination.name}</Text>
-                            <Text style={styles.activeTripFare}>${activeTrip.fare.toLocaleString()}</Text>
-
-                            <GradientButton
-                                title={
-                                    activeTrip.status === 'ACCEPTED' ? "Ya llegué" :
-                                        activeTrip.status === 'ARRIVED' ? "Iniciar Viaje" :
-                                            "Finalizar Viaje"
-                                }
-                                onPress={
-                                    activeTrip.status === 'ACCEPTED' ? handleArrived :
-                                        activeTrip.status === 'ARRIVED' ? handleStartTrip :
-                                            handleCompleteTrip
-                                }
-                                colors={
-                                    activeTrip.status === 'ACCEPTED' ? [theme.colors.primary[0], '#6366F1'] :
-                                        activeTrip.status === 'ARRIVED' ? [theme.colors.success, '#34D399'] :
-                                            [theme.colors.warning || '#F59E0B', '#FBBF24']
-                                }
-                                style={styles.actionButton}
-                            />
-                        </GlassCard>
-                    </View>
-                ) : (
-                    <>
-                        <View style={styles.header}>
-                            <GlassCard style={styles.statusCard}>
-                                <View style={[styles.statusIndicator, { backgroundColor: isOnline ? theme.colors.success : theme.colors.error }]} />
-                                <Text style={styles.statusText}>{isOnline ? 'En línea' : 'Desconectado'}</Text>
-                            </GlassCard>
-                            <TouchableOpacity onPress={() => navigation.navigate('Withdrawal')}>
-                                <GlassCard style={styles.iconButton}>
-                                    <Settings color={theme.colors.text.primary} size={24} />
-                                </GlassCard>
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.footer}>
-                            <GradientButton
-                                title={isOnline ? "Desconectarse" : "Conectarse"}
-                                onPress={() => setIsOnline(!isOnline)}
-                                colors={isOnline ? [theme.colors.error, '#F87171'] : [theme.colors.success, '#34D399']}
-                            />
-                        </View>
-                    </>
-                )}
-
-                {/* Chat Bubble Component */}
-                {activeTrip && (
-                    <TouchableOpacity
-                        style={styles.chatBubble}
-                        onPress={() => setIsChatVisible(true)}
-                    >
-                        <View style={styles.chatIconBadge}>
-                            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>!</Text>
-                        </View>
-                        <MessageCircle color="white" size={24} />
-                        <Text style={{ color: 'white', fontWeight: 'bold', marginLeft: 8 }}>Chat</Text>
-                    </TouchableOpacity>
-                )}
-
-                {/* Chat Modal Component */}
-                {isChatVisible && (
-                    <View style={styles.chatModal}>
-                        <GlassCard style={styles.chatContent}>
-                            <View style={styles.chatHeader}>
-                                <Text style={styles.chatTitle}>Chat con el Pasajero</Text>
-                                <TouchableOpacity onPress={() => setIsChatVisible(false)}>
-                                    <X color={theme.colors.error} size={24} />
-                                </TouchableOpacity>
-                            </View>
-                            <ScrollView style={styles.messagesList}>
-                                {chatMessages.map((m, idx) => (
-                                    <View key={idx} style={[
-                                        styles.messageBubble,
-                                        m.senderId === user.id ? styles.myMessage : styles.otherMessage
-                                    ]}>
-                                        <Text style={styles.messageText}>{m.message}</Text>
-                                    </View>
-                                ))}
-                            </ScrollView>
-                            <View style={styles.chatInputContainer}>
-                                <TextInput
-                                    style={styles.chatInput}
-                                    placeholder="Escribe..."
-                                    placeholderTextColor="#94A3B8"
-                                    value={currentMessage}
-                                    onChangeText={setCurrentMessage}
-                                />
-                                <GradientButton
-                                    title="Enviar"
-                                    onPress={handleSendMessage}
-                                    style={{ width: 80 }}
-                                />
-                            </View>
-                        </GlassCard>
-                    </View>
-                )}
-
-                {/* AI Support Modal */}
-                {isSupportVisible && (
-                    <View style={styles.chatModal}>
-                        <GlassCard style={styles.chatContent}>
-                            <View style={styles.chatHeader}>
-                                <Text style={styles.chatTitle}>Asistente IA para Conductores</Text>
-                                <TouchableOpacity onPress={() => setIsSupportVisible(false)}>
-                                    <X color={theme.colors.error} size={24} />
-                                </TouchableOpacity>
-                            </View>
-                            <View style={{ padding: 20 }}>
-                                <View style={styles.supportInputContainer}>
-                                    <TextInput
-                                        style={styles.chatInput}
-                                        placeholder="Haz tu pregunta aquí..."
-                                        placeholderTextColor="#94A3B8"
-                                        value={supportQuery}
-                                        onChangeText={setSupportQuery}
-                                    />
-                                <GradientButton
-                                    title="Soporte"
-                                    onPress={handleAiSupportQuery}
-                                    style={{ width: 100 }}
-                                    disabled={isSupportLoading || !supportQuery.trim()}
-                                />
-                                </View>
-                                {isSupportLoading && <Text style={{ marginTop: 10 }}>Pensando...</Text>}
-                                {supportResponse ? (
-                                    <View style={styles.supportResponseBox}>
-                                        <MessageSquare size={16} color={theme.colors.primary[0]} />
-                                        <Text style={styles.supportResponseText}>{supportResponse}</Text>
-                                    </View>
-                                ) : null}
-                            </View>
-                        </GlassCard>
-                    </View>
-                )}
-            </SafeAreaView>
-        </View>
-    );
+{/* Wellness Check-in Modal — solo aparece si el conductor dio
+    consentimiento explícito en sus ajustes. Nunca es obligatorio
+    responder y nunca se usa para penalizar, ver ASISTENTE_IA_PLUS.md. */}
+{wellnessCheckIn && (
+    <View style={styles.chatModal}>
+<GlassCard style={styles.chatContent}>
+<View style={styles.chatHeader}>
+<View style={{ flexDirection: 'row', alignItems: 'center' }}>
+<Activity color={theme.colors.primary[0]} size={20} />
+    <Text style={[styles.chatTitle, { marginLeft: 8 }]}>Chequeo de Bienestar</Text>
+    </View>
+<TouchableOpacity onPress={handleDismissWellnessCheckIn}>
+    <X color={theme.colors.error} size={24} />
+    </TouchableOpacity>
+    </View>
+<View style={{ padding: 20 }}>
+<Text style={styles.wellnessPrompt}>{wellnessCheckIn.message}</Text>
+<TextInput
+style={[styles.chatInput, styles.wellnessInput]}
+placeholder="Escribe tu respuesta..."
+placeholderTextColor="#94A3B8"
+value={wellnessResponseText}
+onChangeText={setWellnessResponseText}
+multiline
+/>
+    <GradientButton
+title={isWellnessSending ? "Enviando..." : "Enviar respuesta"}
+onPress={handleSendWellnessResponse}
+disabled={isWellnessSending || !wellnessResponseText.trim()}
+/>
+<Text style={styles.wellnessNote}>
+Esto es solo para tu bienestar — nunca se usa para penalizarte.
+    Puedes cerrar esta ventana si prefieres no responder ahora.
+    </Text>
+    </View>
+    </GlassCard>
+    </View>
+)}
+</SafeAreaView>
+    </View>
+);
 }
 
-const mapStyle = [/* Re-using same dark style as passenger for consistency */
-    { "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
-    { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
-    { "elementType": "labels.text.stroke", "stylers": [{ "color": "#1e293b" }] },
-    { "featureType": "administrative", "elementType": "geometry.stroke", "stylers": [{ "color": "#334155" }] },
-    { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#334155" }] },
-    { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] }
-];
+    const mapStyle = [/* Re-using same dark style as passenger for consistency */
+        { "elementType": "geometry", "stylers": [{ "color": "#1e293b" }] },
+        { "elementType": "labels.text.fill", "stylers": [{ "color": "#94a3b8" }] },
+        { "elementType": "labels.text.stroke", "stylers": [{ "color": "#1e293b" }] },
+        { "featureType": "administrative", "elementType": "geometry.stroke", "stylers": [{ "color": "#334155" }] },
+        { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#334155" }] },
+        { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0f172a" }] }
+        ];
 
 const styles = StyleSheet.create({
     container: {
@@ -451,7 +518,7 @@ const styles = StyleSheet.create({
         fontFamily: theme.fonts.heading,
         fontWeight: 'bold',
         marginLeft: 10,
-    },
+},
     activeTripDest: {
         color: '#FFF',
         fontSize: 18,
@@ -575,5 +642,24 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontFamily: theme.fonts.body,
         fontSize: 15,
+    },
+    wellnessPrompt: {
+        color: 'white',
+        fontSize: 16,
+        fontFamily: theme.fonts.body,
+        marginBottom: 15,
+        lineHeight: 22,
+    },
+    wellnessInput: {
+        marginBottom: 15,
+        minHeight: 60,
+        textAlignVertical: 'top',
+    },
+    wellnessNote: {
+        color: '#94A3B8',
+        fontSize: 12,
+        marginTop: 15,
+        textAlign: 'center',
+        lineHeight: 16,
     }
 });
