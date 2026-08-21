@@ -44,11 +44,11 @@ async extractTripDetails(text: string) {
 
 private async extractTripDetailsWithGemini(text: string) {
   const prompt = `Eres el asistente de una app de transporte de pasajeros en Colombia.
-  Analiza el siguiente pedido de un pasajero y responde SOLO con un JSON valido
-  (sin markdown, sin explicacion) con esta forma exacta:
-  {"serviceType": "URBAN" | "INTERMUNICIPAL", "destination": "nombre del lugar o Centro si no se menciona uno", "isAirport": true | false}
+    Analiza el siguiente pedido de un pasajero y responde SOLO con un JSON valido
+      (sin markdown, sin explicacion) con esta forma exacta:
+        {"serviceType": "URBAN" | "INTERMUNICIPAL", "destination": "nombre del lugar o Centro si no se menciona uno", "isAirport": true | false}
 
-  Pedido del pasajero: "${text}"`;
+          Pedido del pasajero: "${text}"`;
 
   const result = await this.model!.generateContent(prompt);
   const raw = result.response.text().trim();
@@ -97,22 +97,22 @@ private extractTripDetailsSimulated(text: string) {
   };
 }
 
-async getConductorSupport(query: string) {
-  if (this.model) {
-    try {
-      const prompt = `Eres el asistente de soporte para conductores de una app de transporte de pasajeros en Colombia, similar a Uber o Didi. Responde de forma breve, clara y amable en espanol a esta consulta del conductor: "${query}"`;
-      const result = await this.model.generateContent(prompt);
-      return { answer: result.response.text().trim() };
-    } catch (error) {
-      this.logger.error(
-        `Fallo la consulta a Gemini, se usa la respuesta simulada como respaldo: ${error}`,
-        );
+  async getConductorSupport(query: string) {
+    if (this.model) {
+      try {
+        const prompt = `Eres el asistente de soporte para conductores de una app de transporte de pasajeros en Colombia, similar a Uber o Didi. Responde de forma breve, clara y amable en espanol a esta consulta del conductor: "${query}"`;
+        const result = await this.model.generateContent(prompt);
+        return { answer: result.response.text().trim() };
+      } catch (error) {
+        this.logger.error(
+          `Fallo la consulta a Gemini, se usa la respuesta simulada como respaldo: ${error}`,
+          );
+      }
     }
+    return {
+      answer: `Basado en tu consulta "${query}", te recomiendo revisar la seccion de pagos en el panel administrativo. Si el problema persiste, contacta a soporte tecnico.`,
+    };
   }
-  return {
-    answer: `Basado en tu consulta "${query}", te recomiendo revisar la seccion de pagos en el panel administrativo. Si el problema persiste, contacta a soporte tecnico.`,
-  };
-}
 
 async translateMessage(text: string) {
   if (this.model) {
@@ -191,5 +191,60 @@ private assessWellnessResponseSimulated(response: string): { flagged: boolean } 
     ];
   const flagged = concerningWords.some((word) => textLower.includes(word));
   return { flagged };
+}
+
+// Chat conversacional para el pasajero durante el viaje. Solo se llama si
+// el pasajero activó el asistente en sus preferencias (ver
+// PassengerAssistantService) — acá no se valida ningún consentimiento, eso
+// es responsabilidad de quien llama.
+async chatWithPassenger(message: string): Promise<string> {
+  if (this.model) {
+    try {
+      const prompt = `Eres el asistente de viaje para pasajeros de una app de transporte en Colombia, similar a Uber o Didi. Responde de forma breve, amable y natural en espanol a este mensaje del pasajero durante su viaje: "${message}"`;
+      const result = await this.model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (error) {
+      this.logger.error(
+        `Fallo el chat con el pasajero via Gemini, se usa la respuesta simulada como respaldo: ${error}`,
+        );
+    }
+  }
+  return this.chatWithPassengerSimulated(message);
+}
+
+private chatWithPassengerSimulated(message: string): string {
+  return `Gracias por tu mensaje. Estoy en modo simulado (sin conexion a IA real todavia), pero te escuche: "${message}". Un conductor humano sigue a cargo de tu viaje en todo momento.`;
+}
+
+// Recapitulacion amigable del viaje para mostrarle al pasajero al terminar,
+// en vez de solo pedirle una calificacion en estrellas (ver
+// ASISTENTE_IA_PLUS.md).
+async generateTripSummary(trip: {
+  pickupLocationName: string;
+  destinationName: string;
+  fare: number;
+  serviceType: string;
+}): Promise<string> {
+  if (this.model) {
+    try {
+      const prompt = `Eres el asistente de una app de transporte de pasajeros en Colombia. Genera un mensaje corto y calido (2 o 3 frases) resumiendo un viaje que acaba de terminar, de "${trip.pickupLocationName}" a "${trip.destinationName}", tipo de servicio "${trip.serviceType}", con una tarifa de $${trip.fare}. Agradece al pasajero por viajar. Responde solo con el mensaje, sin comillas ni explicaciones.`;
+      const result = await this.model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (error) {
+      this.logger.error(
+        `Fallo la generacion del resumen de viaje con Gemini, se usa el resumen simulado como respaldo: ${error}`,
+        );
+    }
+  }
+  return this.generateTripSummarySimulated(trip);
+}
+
+private generateTripSummarySimulated(trip: {
+  pickupLocationName: string;
+  destinationName: string;
+  fare: number;
+  serviceType: string;
+}): string {
+  return `Listo, llegaste de ${trip.pickupLocationName} a ${trip.destinationName}. Tarifa: $${trip.fare.toLocaleString('es-CO')}. Gracias por viajar con nosotros!`;
 }
 }
