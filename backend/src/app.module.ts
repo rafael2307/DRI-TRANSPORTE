@@ -20,6 +20,7 @@ import { TripsModule } from './trips/trips.module';
 import { AiModule } from './ai/ai.module';
 import { ReviewsModule } from './trips/reviews.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { WellnessModule } from './wellness/wellness.module';
 
 @Module({
   imports: [
@@ -34,15 +35,16 @@ import { NotificationsModule } from './notifications/notifications.module';
     LocationModule,
     PaymentsModule,
     TripsModule,
+    WellnessModule,
     RedisModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
         // Railway (y otros PaaS) exponen una REDIS_URL lista para usar,
-        // incluyendo password si aplica. En desarrollo local usamos
-        // REDIS_HOST/REDIS_PORT sueltos desde .env.
-        const url =
-          configService.get<string>('REDIS_URL') ||
-          `redis://${configService.get('REDIS_HOST', 'localhost')}:${configService.get('REDIS_PORT', 6379)}`;
+      // incluyendo password si aplica. En desarrollo local usamos
+      // REDIS_HOST/REDIS_PORT sueltos desde .env.
+      const url =
+        configService.get<string>('REDIS_URL') ||
+        `redis://${configService.get('REDIS_HOST', 'localhost')}:${configService.get('REDIS_PORT', 6379)}`;
         return { type: 'single', url };
       },
       inject: [ConfigService],
@@ -51,17 +53,17 @@ import { NotificationsModule } from './notifications/notifications.module';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
         // Idem: Railway expone DATABASE_URL para el Postgres administrado.
-        // En local seguimos usando las variables sueltas del .env.
-        const databaseUrl = configService.get<string>('DATABASE_URL');
+      // En local seguimos usando las variables sueltas del .env.
+      const databaseUrl = configService.get<string>('DATABASE_URL');
         const base = databaseUrl
-          ? { url: databaseUrl }
+        ? { url: databaseUrl }
           : {
-              host: configService.get<string>('DB_HOST'),
-              port: configService.get<number>('DB_PORT'),
-              username: configService.get<string>('DB_USERNAME'),
-              password: configService.get<string>('DB_PASSWORD'),
-              database: configService.get<string>('DB_DATABASE'),
-            };
+            host: configService.get<string>('DB_HOST'),
+            port: configService.get<number>('DB_PORT'),
+            username: configService.get<string>('DB_USERNAME'),
+            password: configService.get<string>('DB_PASSWORD'),
+            database: configService.get<string>('DB_DATABASE'),
+          };
         return {
           type: 'postgres',
           ...base,
@@ -71,8 +73,8 @@ import { NotificationsModule } from './notifications/notifications.module';
       },
       inject: [ConfigService],
     }),
-  ],
+    ],
   controllers: [AppController, ConductorController],
   providers: [AppService],
 })
-export class AppModule {}
+  export class AppModule {}
