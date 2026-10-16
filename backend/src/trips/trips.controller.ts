@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { JwtUser } from '../auth/decorators/current-user.decorator';
 import { AiService } from '../ai/ai.service';
+import { RUTAS_LISTA } from './pricing/tarifas';
 
 // Nota: el flujo real de viajes hoy corre por el WebSocket gateway
 // (location.gateway.ts), que todavía confía en el passengerId/driverId que
@@ -18,6 +19,31 @@ import { AiService } from '../ai/ai.service';
     private readonly tripsService: TripsService,
     private readonly aiService: AiService,
     ) {}
+
+// Destinos de Viajes con su precio real por puesto (paso "¿Para dónde vas?")
+@UseGuards(JwtAuthGuard)
+  @Get('routes')
+  routes() {
+    return RUTAS_LISTA;
+  }
+
+// Cotización con las tarifas reales: la app la muestra en el paso "precio"
+// antes de pedir. Lo cotizado es lo que se cobra (salvo subida de oferta).
+@UseGuards(JwtAuthGuard)
+  @Post('quote')
+  async quote(@Body() data: any) {
+    return this.tripsService.quote(data);
+  }
+
+@UseGuards(JwtAuthGuard)
+  @Post(':id/raise')
+  async raiseOffer(
+    @CurrentUser() currentUser: JwtUser,
+    @Param('id') id: string,
+    @Body() data: { offeredFare: number },
+    ) {
+    return this.tripsService.raiseOffer(id, currentUser.sub, data.offeredFare);
+  }
 
 @UseGuards(JwtAuthGuard)
   @Post('request')

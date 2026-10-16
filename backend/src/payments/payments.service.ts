@@ -34,7 +34,7 @@ export class PaymentsService {
   async getRoutePrice(
     routeName: string,
     serviceType: string = 'URBAN',
-  ): Promise<{ price: number; isFree: boolean }> {
+  ): Promise<{ price: number; isFree: boolean; configured: boolean }> {
     const config = await this.configRepo.findOne({ where: { routeName } });
 
     const price =
@@ -47,6 +47,8 @@ export class PaymentsService {
     return {
       price: config && config.isFree ? 0 : price,
       isFree: (config && config.isFree) || false,
+      // true solo si la ruta está configurada y habilitada en el panel admin
+      configured: !!(config && config.isEnabled),
     };
   }
 

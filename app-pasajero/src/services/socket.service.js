@@ -69,6 +69,31 @@ onNewMessage(callback) {
     }
 }
 
+// ----- Flujo recogida → destino → precio → subir oferta -----
+on(event, callback) {
+    if (this.socket) {
+        this.socket.on(event, callback);
+    }
+}
+
+off(event, callback) {
+    if (this.socket) {
+        this.socket.off(event, callback);
+    }
+}
+
+raiseOffer(tripId, offeredFare) {
+    if (this.socket) {
+        this.socket.emit('raiseOffer', { tripId, offeredFare });
+    }
+}
+
+cancelTrip(tripId, reason) {
+    if (this.socket) {
+        this.socket.emit('cancelTrip', { tripId, reason });
+    }
+}
+
 requestTrip(data) {
     if (this.socket) {
         this.socket.emit('requestTrip', data);
