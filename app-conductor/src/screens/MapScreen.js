@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, SafeAreaView, Dimensions, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { StyleSheet, View, Text, SafeAreaView, Dimensions, TouchableOpacity, ScrollView, TextInput, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import MapView, { PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { theme } from '../theme/theme';
@@ -8,6 +9,7 @@ import { GradientButton } from '../components/GradientButton';
 import { Power, Settings, Navigation, HelpCircle, MessageCircle, MessageSquare, X, Activity } from 'lucide-react-native';
 import { socketService } from '../services/socket.service';
 import { useAuth } from '../context/AuthContext';
+import { routeUrl, raisedLabel, money, NAV_APPS } from '../flow/navigation';
 
 const { width, height } = Dimensions.get('window');
 
@@ -28,6 +30,12 @@ const [isChatVisible, setIsChatVisible] = useState(false);
     const [wellnessCheckIn, setWellnessCheckIn] = useState(null); // { checkInId, message }
 const [wellnessResponseText, setWellnessResponseText] = useState('');
     const [isWellnessSending, setIsWellnessSending] = useState(false);
+    const [navMenu, setNavMenu] = useState(null); // { lat, lng, label } cuando se ofrece la ruta GPS
+    const [navApp, setNavApp] = useState('google');
+
+useEffect(() => {
+    AsyncStorage.getItem('navApp').then((v) => v && setNavApp(v)).catch(() => {});
+}, []);
 
 useEffect(() => {
     if (user && token && !socketService.socket) {
@@ -36,6 +44,18 @@ useEffect(() => {
 
           socketService.onNewTripRequest((data) => {
               setPendingTrip(data);
+          });
+
+          // Si el pasajero sube la oferta, la tarjeta se actualiza con el nuevo precio
+          socketService.onTripOfferRaised((data) => {
+              setPendingTrip(data);
+          });
+
+          // Otro conductor la tomó primero
+          socketService.onTripUnavailable((data) => {
+              setActiveTrip(null);
+              setNavMenu(null);
+              alert(data?.message || 'Este viaje ya no está disponible');
           });
 
           socketService.socket?.on('tripStarted', () => {
@@ -108,11 +128,23 @@ useEffect(() => {
                   id: pendingTrip.tripId,
                   passengerSocketId: pendingTrip.passengerSocketId,
                   status: 'ACCEPTED',
+                  pickup: pendingTrip.pickup,
                   destination: pendingTrip.destination,
                   fare: pendingTrip.fare
               });
+              // Al aceptar: ¿ir al pasajero con ruta GPS o sin ruta?
+              setNavMenu({ lat: pendingTrip.pickup?.lat, lng: pendingTrip.pickup?.lng, label: 'Ir al pasajero con ruta GPS' });
               setPendingTrip(null);
           };
+
+const openRoute = async (app) => {
+    const url = navMenu && routeUrl(navMenu.lat, navMenu.lng, app);
+    setNavMenu(null);
+    if (!url) return;
+    setNavApp(app);
+    AsyncStorage.setItem('navApp', app).catch(() => {});
+    try { await Linking.openURL(url); } catch (e) { alert('No se pudo abrir ' + NAV_APPS[app]); }
+};
 
 const handleArrived = () => {
     socketService.driverArrived(activeTrip.id);
@@ -122,6 +154,8 @@ const handleArrived = () => {
 const handleStartTrip = () => {
     socketService.startTrip(activeTrip.id);
     setActiveTrip(prev => ({ ...prev, status: 'IN_PROGRESS' }));
+    // Tras iniciar: ofrecer la ruta hacia el destino
+    setNavMenu({ lat: activeTrip.destination?.lat, lng: activeTrip.destination?.lng, label: 'Ruta al destino' });
 };
 
 const handleCompleteTrip = () => {
@@ -186,8 +220,10 @@ showsUserLocation
     <View style={styles.tripAlertContainer}>
     <GlassCard style={styles.tripAlertCard}>
     <Text style={styles.alertTitle}>¡Nuevo Viaje!</Text>
-    <Text style={styles.alertDetail}>{pendingTrip.destination?.name}</Text>
-    <Text style={styles.alertFare}>${pendingTrip.fare?.toLocaleString()}</Text>
+    {raisedLabel(pendingTrip) ? <Text style={styles.raisedTag}>{raisedLabel(pendingTrip)}</Text> : null}
+    <Text style={styles.alertDetail}>Recoger: {pendingTrip.pickup?.name}</Text>
+    <Text style={styles.alertDetail}>Destino: {pendingTrip.destination?.name}{pendingTrip.distanceKm ? ` · ≈ ${String(pendingTrip.distanceKm).replace('.', ',')} km` : ''}</Text>
+    <Text style={styles.alertFare}>{money(pendingTrip.fare)}</Text>
     <View style={styles.alertActions}>
     <GradientButton
     title="Rechazar"
@@ -214,7 +250,18 @@ style={styles.alertButton}
 </Text>
     </View>
 <Text style={styles.activeTripDest}>{activeTrip.destination.name}</Text>
-<Text style={styles.activeTripFare}>${activeTrip.fare.toLocaleString()}</Text>
+<Text style={styles.activeTripFare}>{money(activeTrip.fare)}</Text>
+
+{navMenu && (
+    <View style={styles.navMenu}>
+        <Text style={styles.navTitle}>{navMenu.label}</Text>
+        <View style={styles.alertActions}>
+            <GradientButton title={NAV_APPS[navApp]} onPress={() => openRoute(navApp)} style={styles.alertButton} />
+            <GradientButton title={navApp === 'google' ? 'Waze' : 'Google Maps'} onPress={() => openRoute(navApp === 'google' ? 'waze' : 'google')} style={styles.alertButton} />
+        </View>
+        <TouchableOpacity onPress={() => setNavMenu(null)}><Text style={styles.navSkip}>Sin ruta</Text></TouchableOpacity>
+    </View>
+)}
 
 <GradientButton
 title={
@@ -661,5 +708,9 @@ const styles = StyleSheet.create({
         marginTop: 15,
         textAlign: 'center',
         lineHeight: 16,
-    }
+    },
+  raisedTag: { alignSelf: 'center', backgroundColor: 'rgba(251,191,36,0.18)', color: '#FBBF24', fontWeight: '700', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, marginBottom: 6, overflow: 'hidden' },
+  navMenu: { marginTop: 12, gap: 8 },
+  navTitle: { color: '#FFF', fontWeight: '700', fontSize: 16, textAlign: 'center' },
+  navSkip: { color: '#93C5FD', textAlign: 'center', paddingVertical: 6 },
 });

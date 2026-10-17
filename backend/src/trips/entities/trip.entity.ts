@@ -74,6 +74,27 @@ export class Trip {
   @Column({ default: false })
   isFree: boolean;
 
+  // ----- Flujo recogida → destino → precio → subir oferta -----
+  // Precio cotizado al pedir (tarifa real de Taxi o de la ruta de Viajes).
+  @Column({ type: 'int', nullable: true })
+  baseFare: number;
+
+  // Precio vigente de la solicitud (>= baseFare). Sube cuando el pasajero sube la oferta.
+  @Column({ type: 'int', nullable: true })
+  offeredFare: number;
+
+  // Cuántas veces subió la oferta (máximo 3).
+  @Column({ type: 'smallint', default: 0 })
+  raises: number;
+
+  // Distancia aproximada en km (línea recta × 1,25).
+  @Column('decimal', { precision: 8, scale: 2, nullable: true })
+  distanceKm: number;
+
+  // Puestos pedidos (solo Viajes; en Taxi siempre 1).
+  @Column({ type: 'smallint', default: 1 })
+  seats: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

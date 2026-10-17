@@ -18,6 +18,11 @@ import { AiService } from '../ai/ai.service';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { WellnessService } from '../wellness/wellness.service';
 import { PassengerAssistantService } from '../passenger-assistant/passenger-assistant.service';
+import { TripStatus } from '../trips/entities/trip.entity';
+import { OFERTA } from '../trips/trips.service';
+
+// Tiempo de búsqueda antes de ofrecerle al pasajero subir la oferta
+export const ESPERA_BUSQUEDA_MS = { URBAN: 45_000, INTERMUNICIPAL: 90_000 };
 
 interface AuthedSocket extends Socket {
   data: { user?: { sub: string; username: string; role: string } };
@@ -35,6 +40,70 @@ interface AuthedSocket extends Socket {
   server: Server;
 
 private readonly logger = new Logger(LocationGateway.name);
+
+// Un temporizador por solicitud abierta: si nadie la toma a tiempo, se le
+// abre al pasajero el menú para subir la oferta (evento noDriverFound).
+private searchTimers = new Map<string, NodeJS.Timeout>();
+
+private clearSearchTimer(tripId: string) {
+  const t = this.searchTimers.get(tripId);
+  if (t) clearTimeout(t);
+  this.searchTimers.delete(tripId);
+}
+
+private armSearchTimeout(trip: any, client: Socket) {
+  this.clearSearchTimer(trip.id);
+  const ms = ESPERA_BUSQUEDA_MS[trip.serviceType] || ESPERA_BUSQUEDA_MS.URBAN;
+  this.searchTimers.set(
+    trip.id,
+    setTimeout(async () => {
+      this.searchTimers.delete(trip.id);
+      try {
+        const t = await this.tripsService.findOne(trip.id);
+        if (!t || t.status !== TripStatus.REQUESTED) return;
+        const base = Number(t.baseFare ?? t.fare);
+        client.emit('noDriverFound', {
+          tripId: t.id,
+          baseFare: base,
+          currentFare: Number(t.offeredFare ?? base),
+          maxFare: Math.round(base * (1 + OFERTA.maxSubida)),
+          raisesLeft: Math.max(0, OFERTA.maxSubidas - (t.raises || 0)),
+        });
+      } catch (e) {
+        this.logger.warn(`No se pudo revisar la solicitud ${trip.id}: ${e?.message}`);
+      }
+    }, ms),
+  );
+}
+
+// Envía la solicitud (o la oferta subida) a los conductores cercanos
+private async notifyDrivers(trip: any, passengerSocketId: string, raised: number) {
+  const nearbyDrivers = await this.locationService.findNearbyDrivers(
+    Number(trip.pickupLat),
+    Number(trip.pickupLng),
+    5,
+    trip.serviceType,
+  );
+  const payload = {
+    tripId: trip.id,
+    pickup: { lat: Number(trip.pickupLat), lng: Number(trip.pickupLng), name: trip.pickupLocationName },
+    destination: { lat: Number(trip.destinationLat), lng: Number(trip.destinationLng), name: trip.destinationName },
+    fare: Number(trip.offeredFare ?? trip.fare),
+    baseFare: Number(trip.baseFare ?? trip.fare),
+    distanceKm: Number(trip.distanceKm || 0),
+    seats: trip.seats || 1,
+    serviceType: trip.serviceType,
+    raised,
+    passengerSocketId,
+  };
+  for (const driver of nearbyDrivers as any[]) {
+    const socketId = await this.locationService.getSocketByUserId(driver[0]);
+    if (socketId) {
+      this.server.to(socketId).emit(raised ? 'tripOfferRaised' : 'newTripRequest', payload);
+    }
+  }
+  return (nearbyDrivers as any[]).length;
+}
 
 constructor(
   private readonly locationService: LocationService,
@@ -214,6 +283,8 @@ private getUser(client: AuthedSocket) {
       destination: { lat: number; lng: number; name: string };
       routeName?: string;
       serviceType?: string;
+      seats?: number;
+      van?: boolean;
     },
     ) {
     const user = this.getUser(client);
@@ -234,36 +305,25 @@ private getUser(client: AuthedSocket) {
       lng2: data.destination.lng,
       routeName: data.routeName,
       serviceType: data.serviceType,
+      seats: data.seats,
+      van: data.van,
     },
     );
 
-  // 2. Find nearby drivers for this specific service type
-  const nearbyDrivers = await this.locationService.findNearbyDrivers(
-    data.pickup.lat,
-    data.pickup.lng,
-    5,
-    data.serviceType,
-    );
+  // 2. Confirmarle al pasajero el precio cotizado (es el que se cobra)
+  client.emit('tripRequested', {
+    tripId: trip.id,
+    fare: Number(trip.fare),
+    baseFare: Number(trip.baseFare),
+    distanceKm: Number(trip.distanceKm || 0),
+    serviceType: trip.serviceType,
+  });
 
-  // 3. Notify drivers via their Socket IDs
-  for (const driver of nearbyDrivers as any[]) {
-    const driverId = driver[0];
-    const socketId = await this.locationService.getSocketByUserId(driverId);
+  // 3. Avisar a los conductores cercanos y arrancar la cuenta regresiva
+  const notified = await this.notifyDrivers(trip, client.id, 0);
+  this.armSearchTimeout(trip, client);
 
-    if (socketId) {
-      this.server.to(socketId).emit('newTripRequest', {
-        tripId: trip.id,
-        pickup: data.pickup,
-        destination: data.destination,
-        fare: trip.fare,
-        passengerSocketId: client.id,
-      });
-    }
-  }
-
-  this.logger.log(
-    `Trip ${trip.id} requested. Notified ${nearbyDrivers.length} potential drivers.`,
-    );
+  this.logger.log(`Trip ${trip.id} requested. Notified ${notified} potential drivers.`);
   }
 
 @UseGuards(WsJwtGuard)
@@ -279,8 +339,15 @@ private getUser(client: AuthedSocket) {
     }
     const driverId = user.sub;
 
-  // 1. Update Trip in DB
-  await this.tripsService.acceptTrip({ id: driverId } as any, data.tripId);
+  // 1. Update Trip in DB (falla si otro conductor ya la tomó)
+  let trip: any;
+  try {
+    trip = await this.tripsService.acceptTrip({ id: driverId } as any, data.tripId);
+  } catch (e) {
+    client.emit('tripUnavailable', { tripId: data.tripId, message: e?.message || 'Viaje no disponible' });
+    return;
+  }
+  this.clearSearchTimer(data.tripId);
 
   // 2. Join both to a Trip Room
   client.join(`trip_${data.tripId}`);
@@ -295,6 +362,7 @@ private getUser(client: AuthedSocket) {
   this.server.to(data.passengerSocketId).emit('tripAccepted', {
     driverId,
     tripId: data.tripId,
+    fare: Number(trip?.fare ?? 0),
   });
 
   this.logger.log(
@@ -351,11 +419,36 @@ private getUser(client: AuthedSocket) {
     @MessageBody() data: { tripId: string; reason?: string },
     ) {
     await this.assertTripParty(data.tripId, this.getUser(client).sub, 'either');
+    this.clearSearchTimer(data.tripId);
     await this.tripsService.cancelTrip(data.tripId);
+    client.emit('tripCancelled', { tripId: data.tripId, reason: data.reason });
     this.server
     .to(`trip_${data.tripId}`)
     .emit('tripCancelled', { tripId: data.tripId, reason: data.reason });
     this.logger.log(`Trip ${data.tripId} cancelled.`);
+  }
+
+// El pasajero sube la oferta cuando nadie ha tomado la solicitud
+@UseGuards(WsJwtGuard)
+  @SubscribeMessage('raiseOffer')
+  async handleRaiseOffer(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() data: { tripId: string; offeredFare: number },
+    ) {
+    const user = this.getUser(client);
+    if (user.role !== 'passenger') return;
+    try {
+      const trip = await this.tripsService.raiseOffer(data.tripId, user.sub, data.offeredFare);
+      client.emit('offerRaised', {
+        tripId: trip.id,
+        fare: Number(trip.offeredFare),
+        raisesLeft: Math.max(0, OFERTA.maxSubidas - trip.raises),
+      });
+      await this.notifyDrivers(trip, client.id, trip.raises);
+      this.armSearchTimeout(trip, client);
+    } catch (e) {
+      client.emit('raiseOfferError', { tripId: data.tripId, message: e?.message || 'No se pudo subir la oferta' });
+    }
   }
 
 @UseGuards(WsJwtGuard)

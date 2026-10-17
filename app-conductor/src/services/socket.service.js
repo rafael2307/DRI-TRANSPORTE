@@ -29,6 +29,19 @@ onNewTripRequest(callback) {
     }
 }
 
+// La misma solicitud con la oferta subida por el pasajero
+onTripOfferRaised(callback) {
+    if (this.socket) {
+        this.socket.on('tripOfferRaised', callback);
+    }
+}
+
+onTripUnavailable(callback) {
+    if (this.socket) {
+        this.socket.on('tripUnavailable', callback);
+    }
+}
+
 acceptTrip(data) {
     if (this.socket) {
         this.socket.emit('acceptTrip', data);

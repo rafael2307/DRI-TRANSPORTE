@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useReducer, useRef } from 'react';
 import { StyleSheet, View, Text, SafeAreaView, Dimensions, TouchableOpacity, ScrollView, TextInput } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -9,23 +9,24 @@ import { Search, MapPin, Navigation, Settings, CreditCard, MessageCircle, Messag
 import { socketService } from '../services/socket.service';
 import { useAuth } from '../context/AuthContext';
 import { GradientButton } from '../components/GradientButton';
+import { RequestFlowSheet } from '../components/RequestFlowSheet';
+import { reducer as flowReducer, initialState as flowInitial, money } from '../flow/requestFlow';
+
+const API_URL = 'http://localhost:3000';
 
 const { width, height } = Dimensions.get('window');
 
-const MUNICIPALITIES = [
-    { id: '1', name: 'Chía', price: 35000 },
-    { id: '2', name: 'Cajicá', price: 45000 },
-    { id: '3', name: 'Zipaquirá', price: 65000 },
-    { id: '4', name: 'Facatativá', price: 75000 },
-    { id: '5', name: 'Fusagasugá', price: 120000 },
-    ];
+// Los destinos de Viajes y sus precios reales vienen del backend (GET /trips/routes).
 
 export default function MapScreen() {
     const { user, token } = useAuth();
     const [location, setLocation] = useState(null);
     const [drivers, setDrivers] = useState({});
     const [serviceType, setServiceType] = useState('URBAN'); // URBAN or INTERMUNICIPAL
-const [destMunicipality, setDestMunicipality] = useState(null);
+const [flow, dispatch] = useReducer(flowReducer, flowInitial('URBAN'));
+    const [routes, setRoutes] = useState([]);
+    const flowRef = useRef(flow);
+    flowRef.current = flow;
     const [isSearching, setIsSearching] = useState(false);
     const [tripStatus, setTripStatus] = useState(null); // 'ACCEPTED', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED'
 const [fare, setFare] = useState(null);
@@ -77,7 +78,15 @@ useEffect(() => {
               setIsSearching(false);
               setTripStatus('ACCEPTED');
               setActiveTrip(data);
+              setFare(data.fare);
+              dispatch({ type: 'ACCEPTED', fare: data.fare });
           });
+
+          // Nuevo flujo: precio confirmado, nadie lo tomó (subir oferta), oferta subida
+          socketService.on('tripRequested', (d) => dispatch({ type: 'TRIP_REQUESTED', tripId: d.tripId, fare: d.fare }));
+          socketService.on('noDriverFound', (d) => dispatch({ type: 'NO_DRIVER', ...d }));
+          socketService.on('offerRaised', (d) => dispatch({ type: 'OFFER_RAISED', fare: d.fare, raisesLeft: d.raisesLeft }));
+          socketService.on('raiseOfferError', (d) => alert(d.message));
 
           socketService.onNewMessage((msg) => {
               setChatMessages(prev => [...prev, msg]);
@@ -103,6 +112,7 @@ useEffect(() => {
           socketService.onTripCancelled(() => {
               setTripStatus(null);
               setIsSearching(false);
+              dispatch({ type: 'CANCEL' });
               alert('El viaje ha sido cancelado.');
           });
 
@@ -141,6 +151,42 @@ useEffect(() => {
     .catch(() => { /* si falla, se asume desactivado por defecto */ });
 }, [token]);
 
+// Al cambiar Taxi/Viaje el flujo vuelve a empezar
+useEffect(() => {
+    dispatch({ type: 'SET_SERVICE', serviceType });
+}, [serviceType]);
+
+// Destinos de Viajes con su precio real por puesto
+useEffect(() => {
+    if (!token) return;
+    fetch(`${API_URL}/trips/routes`, { headers: { Authorization: `Bearer ${token}` } })
+    .then((res) => res.json())
+    .then((data) => Array.isArray(data) && setRoutes(data))
+    .catch(() => setRoutes([]));
+}, [token]);
+
+// Paso "precio": cotiza con el backend (tarifas reales). La app no inventa precios.
+useEffect(() => {
+    if (flow.step !== 'QUOTE' || flow.quote || !token) return;
+    fetch(`${API_URL}/trips/quote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+            pickup: flow.pickup,
+            destination: flow.destination,
+            serviceType: flow.serviceType,
+            routeName: flow.serviceType === 'URBAN' ? 'default' : flow.destination?.name,
+            seats: flow.seats,
+        }),
+    })
+    .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || 'No se pudo calcular el precio');
+        dispatch({ type: 'QUOTE_OK', quote: data });
+    })
+    .catch((e) => dispatch({ type: 'QUOTE_FAIL', message: e.message }));
+}, [flow.step, flow.quote, token]);
+
 // Effect to refetch drivers when serviceType changes
 useEffect(() => {
     if (socketService.socket && location) {
@@ -155,18 +201,45 @@ useEffect(() => {
 }, [serviceType]);
 
 
-const handleRequestTrip = () => {
-    setIsSearching(true);
-    const dest = serviceType === 'URBAN'
-    ? { lat: location.latitude + 0.01, lng: location.longitude + 0.01, name: 'Centro Comercial' }
-        : { lat: 4.8617, lng: -74.0531, name: destMunicipality?.name || 'Chía' };
+const useGpsAsPickup = () => {
+    if (!location) return;
+    dispatch({ type: 'SET_PICKUP', pickup: { lat: location.latitude, lng: location.longitude, name: 'Mi ubicación' } });
+};
 
+// Tocar el mapa pone el punto de recogida o el destino, según el paso
+const handleMapPress = (e) => {
+    const c = e?.nativeEvent?.coordinate;
+    if (!c) return;
+    const punto = { lat: c.latitude, lng: c.longitude };
+    if (flow.step === 'PICKUP') dispatch({ type: 'SET_PICKUP', pickup: { ...punto, name: 'Punto en el mapa' } });
+    else if (flow.step === 'DESTINATION' && flow.serviceType === 'URBAN') dispatch({ type: 'SET_DESTINATION', destination: { ...punto, name: 'Destino en el mapa' } });
+};
+
+const handleRequestTrip = () => {
+    if (!flow.pickup || !flow.destination || !flow.quote) return;
+    dispatch({ type: 'REQUEST' });
+    setIsSearching(true);
     socketService.requestTrip({
-        pickup: { lat: location.latitude, lng: location.longitude, name: 'Mi ubicación' },
-        destination: dest,
-        routeName: serviceType === 'URBAN' ? 'default' : (destMunicipality?.name || 'inter_base'),
-        serviceType
+        pickup: flow.pickup,
+        destination: flow.destination,
+        routeName: flow.serviceType === 'URBAN' ? 'default' : flow.destination.name,
+        serviceType: flow.serviceType,
+        seats: flow.seats,
     });
+};
+
+const handleSendOffer = () => {
+    const f = flowRef.current;
+    if (!f.tripId || !f.offer) return;
+    socketService.raiseOffer(f.tripId, f.offer.draft);
+    dispatch({ type: 'SEND_OFFER' });
+};
+
+const handleCancelSearch = () => {
+    const f = flowRef.current;
+    if (f.tripId) socketService.cancelTrip(f.tripId, 'Cancelado por el pasajero');
+    setIsSearching(false);
+    dispatch({ type: 'CANCEL' });
 };
 
 // Consulta el estado real de la transacción, que solo cambia cuando Wompi
@@ -193,7 +266,8 @@ const pollTransactionStatus = async (reference, attempts = 10, delayMs = 2000) =
 const handlePayment = async () => {
     setIsPaying(true);
     try {
-        const amount = serviceType === 'URBAN' ? 8500 : (destMunicipality?.price || 25000);
+        // El valor a pagar es el precio final del viaje (cotizado o subido por el pasajero), nunca uno fijo
+        const amount = Number(fare ?? flow.quote?.fare ?? 0);
 
     // 1. Pedir al backend la sesión de checkout (firma real + URL de Wompi)
     const response = await fetch('http://localhost:3000/payments/checkout', {
@@ -226,7 +300,7 @@ const handlePayment = async () => {
     if (finalStatus === 'APPROVED') {
         alert('¡Pago procesado exitosamente con Wompi!');
         setTripStatus(null);
-        setDestMunicipality(null);
+        dispatch({ type: 'CANCEL' });
     } else if (finalStatus === 'DECLINED' || finalStatus === 'ERROR') {
         alert('El pago no fue aprobado. Intenta de nuevo o usa otro método.');
     } else {
@@ -328,6 +402,7 @@ initialRegion={{
     longitudeDelta: 0.01,
 }}
 showsUserLocation
+onPress={handleMapPress}
 >
 {Object.values(drivers).map((driver) => (
     <Marker
@@ -349,6 +424,12 @@ title="Tu ubicación"
     </View>
     </Marker>
 )}
+{flow.pickup && (
+    <Marker coordinate={{ latitude: flow.pickup.lat, longitude: flow.pickup.lng }} title="Recogida" pinColor="#3B82F6" />
+)}
+{flow.destination && (
+    <Marker coordinate={{ latitude: flow.destination.lat, longitude: flow.destination.lng }} title={flow.destination.name} pinColor="#F59E0B" />
+)}
 </MapView>
 
 {/* Service Type Selector */}
@@ -368,70 +449,35 @@ onPress={() => setServiceType('INTERMUNICIPAL')}
     </View>
 
 <SafeAreaView style={styles.overlay}>
-{!isSearching ? (
-    <>
-{serviceType === 'INTERMUNICIPAL' ? (
-    <View style={styles.municipalityContainer}>
- <Text style={styles.sectionTitle}>Elegir Municipio</Text>
- <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.municipalityList}>
- {MUNICIPALITIES.map(m => (
-     <TouchableOpacity
-                     key={m.id}
-                     style={[styles.municipalityCard, destMunicipality?.id === m.id && styles.municipalityCardActive]}
-                     onPress={() => setDestMunicipality(m)}
- >
-                     <MapPin color={destMunicipality?.id === m.id ? '#FFF' : '#3B82F6'} size={20} />
-    <Text style={[styles.municipalityName, destMunicipality?.id === m.id && styles.municipalityNameActive]}>{m.name}</Text>
-    <Text style={[styles.municipalityPrice, destMunicipality?.id === m.id && styles.municipalityPriceActive]}>${m.price.toLocaleString()}</Text>
-    </TouchableOpacity>
-    ))}
-    </ScrollView>
+{!activeTrip ? (
+    <View style={styles.bottomCardContainer}>
+        <RequestFlowSheet
+            state={flow}
+            dispatch={dispatch}
+            routes={routes}
+            gps={location}
+            onUseGps={useGpsAsPickup}
+            onRequest={handleRequestTrip}
+            onSendOffer={handleSendOffer}
+            onCancel={handleCancelSearch}
+        />
     </View>
-    ) : (
-    <GlassCard style={styles.searchBar}>
-    <Search color={theme.colors.text.secondary} size={20} />
-    <Text style={styles.searchText}>¿A dónde vamos?</Text>
-    </GlassCard>
-)}
-
-<View style={styles.bottomCardContainer}>
+) : (
+    <View style={styles.bottomCardContainer}>
 <GlassCard style={styles.tripCard}>
 <View style={styles.tripInfo}>
 <Text style={styles.tripTitle}>
-{tripStatus === 'COMPLETED' ? 'Viaje Finalizado' : (serviceType === 'URBAN' ? 'Viaje al Centro' : `Hacia ${destMunicipality?.name || 'Selecciona...'}`)}
+{tripStatus === 'COMPLETED' ? 'Viaje Finalizado' : `Hacia ${flow.destination?.name || 'tu destino'}`}
     </Text>
-<Text style={styles.tripPrice}>
-{serviceType === 'URBAN' ? '$8.500' : `$${(destMunicipality?.price || 25000).toLocaleString()}`}
-    </Text>
+<Text style={styles.tripPrice}>{money(fare ?? flow.quote?.fare)}</Text>
     </View>
-{tripStatus === 'COMPLETED' ? (
+{tripStatus === 'COMPLETED' && (
     <GradientButton
     title={isPaying ? "Procesando..." : "Pagar con Wompi"}
 onPress={handlePayment}
 disabled={isPaying}
 />
-    ) : (
-        <GradientButton
-        title="Solicitar Ahora"
-        onPress={handleRequestTrip}
-disabled={serviceType === 'INTERMUNICIPAL' && !destMunicipality}
-    />
 )}
-    </GlassCard>
-    </View>
-    </>
-) : (
-    <View style={styles.searchingOverlay}>
-    <GlassCard style={styles.searchingCard}>
-<View style={styles.pulseContainer}>
-<View style={styles.pulse} />
-    </View>
-<Text style={styles.searchingText}>Buscando conductores cercanos...</Text>
-<GradientButton
-title="Cancelar"
-onPress={() => setIsSearching(false)}
-colors={[theme.colors.error, '#F87171']}
-/>
     </GlassCard>
     </View>
 )}
