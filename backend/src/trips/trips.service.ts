@@ -46,6 +46,10 @@ export interface Quote {
 
 @Injectable()
 export class TripsService {
+  // Reloj del servicio (se reemplaza en las pruebas para no depender de la hora real:
+  // de 9 p. m. a 5 a. m. aplica el recargo nocturno).
+  now: () => Date = () => new Date();
+
   constructor(
     @InjectRepository(Trip)
     private tripRepo: Repository<Trip>,
@@ -83,7 +87,7 @@ export class TripsService {
           ? configurado.price
           : tarifaViaje(configurado.price, seats, !!data.van);
     } else if (tipo === 'URBAN') {
-      fare = tarifaTaxi(km, data.at || new Date(), data.destination);
+      fare = tarifaTaxi(km, data.at || this.now(), data.destination);
     } else {
       const porPuesto = precioRutaViajes(ruta);
       if (!porPuesto) {

@@ -6,6 +6,9 @@ import { Trip, TripStatus, ServiceType } from './entities/trip.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { LocationService } from '../location/location.service';
 
+const DIA = new Date('2026-10-16T18:00:00Z');
+const NOCHE = new Date('2026-10-17T04:19:00Z'); // 11:19 p. m. en Colombia
+
 // Flujo: recogida → destino → precio → (nadie lo toma) subir oferta → conductor acepta
 describe('TripsService – flujo recogida/destino/oferta', () => {
   let service: TripsService;
@@ -40,6 +43,7 @@ describe('TripsService – flujo recogida/destino/oferta', () => {
       ],
     }).compile();
     service = module.get(TripsService);
+    service.now = () => DIA; // 1 p. m. en Colombia: sin recargo nocturno
   });
 
   const pedirTaxi = () =>
@@ -59,6 +63,12 @@ describe('TripsService – flujo recogida/destino/oferta', () => {
     expect(t.baseFare).toBe(10000);
     expect(t.offeredFare).toBe(10000);
     expect(t.status).toBe(TripStatus.REQUESTED);
+  });
+
+  it('de noche cobra el recargo de $1.500 (como el bot)', async () => {
+    service.now = () => NOCHE;
+    const t = await pedirTaxi();
+    expect(t.fare).toBe(11500);
   });
 
   it('cotiza Viajes por puesto con la ruta real', async () => {
